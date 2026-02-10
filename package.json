@@ -3,6 +3,14 @@
   "module": "index.ts",
   "type": "module",
   "private": true,
+  "bin": {
+    "context7-local": "src/server/index.ts",
+    "context7-ingest": "src/cli/index.ts"
+  },
+  "scripts": {
+    "start": "bun run src/server/index.ts --transport http",
+    "ingest": "bun run src/cli/index.ts"
+  },
   "devDependencies": {
     "@types/bun": "latest",
     "@types/express": "^5.0.6",
