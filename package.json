@@ -1,0 +1,20 @@
+{
+  "name": "local_context7",
+  "module": "index.ts",
+  "type": "module",
+  "private": true,
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/express": "^5.0.6",
+    "@types/node": "^25.2.2"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "~1.25",
+    "commander": "^14.0.3",
+    "express": "^5.2.1",
+    "zod": "^4"
+  }
+}
