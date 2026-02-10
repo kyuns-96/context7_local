@@ -1,0 +1,122 @@
+{
+  "react": {
+    "repo": "https://github.com/facebook/react",
+    "docsPath": "docs",
+    "title": "React",
+    "description": "A JavaScript library for building user interfaces with component-based architecture"
+  },
+  "nextjs": {
+    "repo": "https://github.com/vercel/next.js",
+    "docsPath": "docs",
+    "title": "Next.js",
+    "description": "The React Framework for Production with built-in routing and server-side rendering"
+  },
+  "typescript": {
+    "repo": "https://github.com/microsoft/TypeScript",
+    "docsPath": "doc",
+    "title": "TypeScript",
+    "description": "A typed superset of JavaScript that compiles to clean, readable JavaScript code"
+  },
+  "nodejs": {
+    "repo": "https://github.com/nodejs/node",
+    "docsPath": "doc",
+    "title": "Node.js",
+    "description": "JavaScript runtime built on Chrome's V8 engine for server-side development"
+  },
+  "express": {
+    "repo": "https://github.com/expressjs/expressjs.com",
+    "docsPath": "en",
+    "title": "Express.js",
+    "description": "Fast, unopinionated, minimalist web framework for Node.js"
+  },
+  "vue": {
+    "repo": "https://github.com/vuejs/vue-next",
+    "docsPath": "packages/sfc-playground/README.md",
+    "title": "Vue.js",
+    "description": "The Progressive JavaScript Framework for building user interfaces"
+  },
+  "angular": {
+    "repo": "https://github.com/angular/angular",
+    "docsPath": "aio/content",
+    "title": "Angular",
+    "description": "Platform for building mobile and desktop web applications"
+  },
+  "svelte": {
+    "repo": "https://github.com/sveltejs/svelte",
+    "docsPath": "documentation",
+    "title": "Svelte",
+    "description": "Cybernetically enhanced web apps with minimal JavaScript overhead"
+  },
+  "tailwindcss": {
+    "repo": "https://github.com/tailwindlabs/tailwindcss",
+    "docsPath": "docs",
+    "title": "Tailwind CSS",
+    "description": "Utility-first CSS framework for rapidly building custom designs"
+  },
+  "prisma": {
+    "repo": "https://github.com/prisma/prisma",
+    "docsPath": "content/200-orm/100-overview",
+    "title": "Prisma",
+    "description": "Next-generation ORM for Node.js and TypeScript with type-safe database access"
+  },
+  "django": {
+    "repo": "https://github.com/django/django",
+    "docsPath": "docs",
+    "title": "Django",
+    "description": "High-level Python Web framework that encourages rapid development and clean design"
+  },
+  "flask": {
+    "repo": "https://github.com/pallets/flask",
+    "docsPath": "docs",
+    "title": "Flask",
+    "description": "Lightweight WSGI web application framework written in Python"
+  },
+  "fastapi": {
+    "repo": "https://github.com/tiangolo/fastapi",
+    "docsPath": "docs",
+    "title": "FastAPI",
+    "description": "Modern, fast web framework for building APIs with Python 3.7+ based on standard Python type hints"
+  },
+  "sqlalchemy": {
+    "repo": "https://github.com/sqlalchemy/sqlalchemy",
+    "docsPath": "doc",
+    "title": "SQLAlchemy",
+    "description": "Python SQL toolkit and Object-Relational Mapping (ORM) library"
+  },
+  "pydantic": {
+    "repo": "https://github.com/pydantic/pydantic",
+    "docsPath": "docs",
+    "title": "Pydantic",
+    "description": "Data validation and settings management using Python type annotations"
+  },
+  "celery": {
+    "repo": "https://github.com/celery/celery",
+    "docsPath": "docs",
+    "title": "Celery",
+    "description": "Distributed task queue library for Python with support for real-time processing"
+  },
+  "pytest": {
+    "repo": "https://github.com/pytest-dev/pytest",
+    "docsPath": "doc",
+    "title": "Pytest",
+    "description": "Simple yet powerful testing framework for Python with plugin architecture"
+  },
+  "numpy": {
+    "repo": "https://github.com/numpy/numpy",
+    "docsPath": "doc",
+    "title": "NumPy",
+    "description": "Fundamental package for array computing and numerical computing in Python"
+  },
+  "pandas": {
+    "repo": "https://github.com/pandas-dev/pandas",
+    "docsPath": "doc",
+    "title": "Pandas",
+    "description": "Flexible and powerful data analysis and manipulation library for Python"
+  },
+  "requests": {
+    "repo": "https://github.com/psf/requests",
+    "docsPath": "docs",
+    "title": "Requests",
+    "description": "Elegant and simple HTTP library for Python built for human beings"
+  }
+}
