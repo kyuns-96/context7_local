@@ -147,6 +147,8 @@ Follow these steps to deploy `local_context7` in a network-restricted environmen
     ```
 8.  **Client Config**: Configure OpenCode on developer machines to point to the server's IP: `http://server:3000/mcp`.
 
+**Note on Embedding Providers**: Air-gapped deployments must use the local embedding provider (default). External API providers (like OpenAI) require active internet connections and are not compatible with air-gapped environments.
+
 ## 7. Adding New Libraries
 
 To add new library shortcuts to the registry, edit `data/presets.json`:
@@ -222,7 +224,76 @@ bun run src/cli/index.ts vectorize --db docs.db --force
 - **Search Latency**: Similar to keyword search (<100ms).
 - **Storage Overhead**: ~1.5KB per document chunk for embedding data.
 
-## 9. Known Limitations
+## 9. Embedding Providers
+
+`local_context7` supports multiple embedding providers, allowing you to choose between offline local models and online API services.
+
+### Local Provider (Default)
+- **Model**: Xenova/all-MiniLM-L6-v2
+- **Dimensions**: 384
+- **Cost**: Free
+- **Requirements**: No internet after initial model download (~23MB)
+- **Air-gap compatible**: Yes
+- **Performance**: ~50ms per embedding
+
+The local provider is ideal for air-gapped environments, privacy-sensitive deployments, and cost-conscious users.
+
+### OpenAI Provider
+- **Models**: text-embedding-3-small (1536d), text-embedding-3-large (3072d)
+- **Cost**: Pay per token (requires OpenAI API key)
+- **Requirements**: Active internet connection
+- **Air-gap compatible**: No
+- **Performance**: Network latency dependent
+
+The OpenAI provider offers higher-quality embeddings for production deployments with internet access.
+
+### Configuration
+
+**Via CLI Flags:**
+```bash
+# Using OpenAI provider
+bun run src/cli/index.ts ingest https://github.com/vercel/next.js \
+  --db docs.db \
+  --embedding-provider openai \
+  --embedding-api-key sk-... \
+  --embedding-model text-embedding-3-small
+
+# Using local provider (default)
+bun run src/cli/index.ts ingest https://github.com/vercel/next.js --db docs.db
+```
+
+**Via Environment Variables:**
+```bash
+export EMBEDDING_PROVIDER=openai
+export EMBEDDING_API_KEY=sk-...
+export EMBEDDING_MODEL=text-embedding-3-small  # optional
+bun run src/cli/index.ts ingest https://github.com/vercel/next.js --db docs.db
+```
+
+**Precedence**: CLI flags > environment variables > defaults
+
+### Provider Comparison
+
+| Feature | Local Provider | OpenAI Provider |
+|---------|----------------|-----------------|
+| Model | Xenova/all-MiniLM-L6-v2 | text-embedding-3-small/large |
+| Dimensions | 384 | 1536 or 3072 |
+| Cost | Free | Pay per token |
+| Internet Required | Only for initial download | Yes, for every request |
+| Air-gap Compatible | Yes | No |
+| Performance | ~50ms per embedding | Network dependent |
+| Quality | Good | Excellent |
+
+### Security Notes
+
+**IMPORTANT**: Never commit API keys to source control.
+
+- Use environment variables for server deployments
+- Use CLI flags for one-off commands
+- Add `.env` to `.gitignore` if using dotenv files
+- Rotate API keys if accidentally exposed
+
+## 10. Known Limitations
 
 - **Embedding Model Size**: The vector search model is ~23MB. It downloads automatically on first use and is cached locally.
 - **Embeddings Optional**: Vector search requires embeddings. Keyword search works without them.
