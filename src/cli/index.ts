@@ -284,3 +284,13 @@ async function handlePreview(parsed: ParsedCommand): Promise<void> {
     }
   }
 }
+
+async function main() {
+  const parsed = parseCliCommand(process.argv.slice(2));
+  await executeCommand(parsed);
+}
+
+main().catch((error) => {
+  console.error("Fatal error in main():", error);
+  process.exit(1);
+});

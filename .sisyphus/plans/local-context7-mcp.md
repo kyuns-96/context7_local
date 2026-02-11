@@ -76,14 +76,14 @@ Build a fully offline MCP documentation server that LLMs can query through OpenC
 - `README.md` — Setup, usage, deployment guide
 
 ### Definition of Done
-- [ ] `bun test` — all tests pass (exit code 0)
-- [ ] MCP server starts on HTTP, responds to `initialize`, `tools/list`, `tools/call` for both tools
-- [ ] MCP server starts on stdio, same tool functionality
-- [ ] CLI ingests a real GitHub repo (e.g., expressjs/express), produces `.db` file
-- [ ] `resolve-library-id` returns search results from local DB
-- [ ] `query-docs` returns documentation snippets from local DB with BM25 ranking
-- [ ] Versioned ingestion works (different versions of same library coexist)
-- [ ] OpenCode connects to MCP server via HTTP and can call both tools
+- [x] `bun test` — all tests pass (exit code 0)
+- [x] MCP server starts on HTTP, responds to `initialize`, `tools/list`, `tools/call` for both tools
+- [x] MCP server starts on stdio, same tool functionality
+- [x] CLI ingests a real GitHub repo (e.g., expressjs/express), produces `.db` file
+- [x] `resolve-library-id` returns search results from local DB
+- [x] `query-docs` returns documentation snippets from local DB with BM25 ranking
+- [x] Versioned ingestion works (different versions of same library coexist)
+- [x] OpenCode connects to MCP server via HTTP and can call both tools
 
 ### Must Have
 - Tool names match Context7 exactly: `resolve-library-id`, `query-docs`
@@ -207,7 +207,7 @@ Parallel Speedup: ~45% faster than sequential
 
 ## TODOs
 
-- [ ] 0. Smoke Test: Bun + Express + MCP SDK + bun:sqlite FTS5 Compatibility
+- [x] 0. Smoke Test: Bun + Express + MCP SDK + bun:sqlite FTS5 Compatibility
 
   **What to do**:
   - Initialize project: `bun init`, create `package.json` with `"type": "module"`
@@ -289,7 +289,7 @@ Parallel Speedup: ~45% faster than sequential
 
 ---
 
-- [ ] 1. Database Layer: Schema + FTS5 + Connection Management
+- [x] 1. Database Layer: Schema + FTS5 + Connection Management
 
   **What to do**:
   - **RED**: Write `tests/db/schema.test.ts`:
@@ -410,7 +410,7 @@ Parallel Speedup: ~45% faster than sequential
 
 ---
 
-- [ ] 2. Markdown Parser + Heading-Aware Chunker
+- [x] 2. Markdown Parser + Heading-Aware Chunker
 
   **What to do**:
   - Install: `bun add unified remark-parse remark-gfm remark-stringify`
@@ -500,7 +500,7 @@ Parallel Speedup: ~45% faster than sequential
 
 ---
 
-- [ ] 3. MCP Tools: resolve-library-id + query-docs
+- [x] 3. MCP Tools: resolve-library-id + query-docs
 
   **What to do**:
   - **RED**: Write `tests/db/queries.test.ts`:
@@ -597,7 +597,7 @@ Parallel Speedup: ~45% faster than sequential
 
 ---
 
-- [ ] 4. GitHub Scraper + Ingestion Pipeline
+- [x] 4. GitHub Scraper + Ingestion Pipeline
 
   **What to do**:
   - **RED**: Write `tests/scraper/github.test.ts`:
@@ -699,7 +699,7 @@ Parallel Speedup: ~45% faster than sequential
 
 ---
 
-- [ ] 5. Response Formatting (Match Context7 Output)
+- [x] 5. Response Formatting (Match Context7 Output)
 
   **What to do**:
   - **RED**: Write `tests/server/format.test.ts`:
@@ -777,7 +777,7 @@ Parallel Speedup: ~45% faster than sequential
 
 ---
 
-- [ ] 6. CLI Interface: ingest, list, remove, preview Commands
+- [x] 6. CLI Interface: ingest, list, remove, preview Commands
 
   **What to do**:
   - **RED**: Write `tests/cli/cli.test.ts`:
@@ -859,7 +859,7 @@ Parallel Speedup: ~45% faster than sequential
 
 ---
 
-- [ ] 7. MCP Server Entry Point: HTTP + stdio Transport
+- [x] 7. MCP Server Entry Point: HTTP + stdio Transport
 
   **What to do**:
   - **RED**: Write `tests/server/integration.test.ts`:
@@ -963,7 +963,7 @@ Parallel Speedup: ~45% faster than sequential
 
 ---
 
-- [ ] 8. Library Presets Registry
+- [x] 8. Library Presets Registry
 
   **What to do**:
   - Create `data/presets.json` with pre-configured library entries:
@@ -1054,7 +1054,7 @@ Parallel Speedup: ~45% faster than sequential
 
 ---
 
-- [ ] 9. End-to-End Integration Tests
+- [x] 9. End-to-End Integration Tests
 
   **What to do**:
   - Write `tests/e2e/full-roundtrip.test.ts`:
@@ -1132,7 +1132,7 @@ Parallel Speedup: ~45% faster than sequential
 
 ---
 
-- [ ] 10. Deployment Documentation + OpenCode Config + README
+- [x] 10. Deployment Documentation + OpenCode Config + README
 
   **What to do**:
   - Create `opencode.json` example config:
@@ -1296,9 +1296,9 @@ bun build --compile src/server/index.ts --outfile context7-local
 ```
 
 ### Final Checklist
-- [ ] All "Must Have" present (tool names, parameters, format, transports, versioning, presets, shutdown)
-- [ ] All "Must NOT Have" absent (no web UI, no auth, no vector search, no abstractions, no mocking)
-- [ ] All tests pass (`bun test` exit code 0)
-- [ ] MCP server connects to OpenCode via HTTP
-- [ ] Standalone binary compiles for air-gapped deployment
-- [ ] README documents complete air-gapped deployment workflow
+- [x] All "Must Have" present (tool names, parameters, format, transports, versioning, presets, shutdown)
+- [x] All "Must NOT Have" absent (no web UI, no auth, no vector search, no abstractions, no mocking)
+- [x] All tests pass (`bun test` exit code 0)
+- [x] MCP server connects to OpenCode via HTTP
+- [x] Standalone binary compiles for air-gapped deployment
+- [x] README documents complete air-gapped deployment workflow

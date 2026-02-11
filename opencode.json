@@ -3,7 +3,7 @@
   "mcp": {
     "context7-local": {
       "type": "remote",
-      "url": "http://YOUR_SERVER_IP:3000/mcp",
+      "url": "http://localhost:3000/mcp",
       "enabled": true,
       "oauth": false
     }
