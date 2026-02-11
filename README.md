@@ -293,6 +293,391 @@ bun run src/cli/index.ts ingest https://github.com/vercel/next.js --db docs.db
 - Add `.env` to `.gitignore` if using dotenv files
 - Rotate API keys if accidentally exposed
 
+## 9.5. Re-embedding in Different Environments
+
+Once you've ingested documentation and created embeddings with one provider, you may want to switch to a different provider or environment. The `scripts/re-embed.sh` automation script makes this process seamless.
+
+### Why Re-embed?
+
+Common reasons to re-embed existing data:
+
+1. **Environment Switch**: From development (local) to production (OpenAI), or vice versa
+2. **Provider Change**: Switching from local to OpenAI for better quality, or from OpenAI to local for cost savings
+3. **Model Update**: Using a newer embedding model for improved relevance
+4. **Quality Improvement**: Re-embedding with a different provider to test quality improvements
+5. **Library Update**: After ingesting a new version of a library, update its embeddings
+6. **Air-gap Transition**: Moving from internet-connected to offline environment (use local provider)
+
+### Quick Start
+
+The easiest way to re-embed is using the provided automation script:
+
+```bash
+# Interactive mode (prompts for provider and settings)
+./scripts/re-embed.sh
+
+# Non-interactive mode with OpenAI
+./scripts/re-embed.sh --provider openai --api-key sk-... --force
+
+# Local provider (free, no API key needed)
+./scripts/re-embed.sh --provider local --force
+
+# Specific library only
+./scripts/re-embed.sh --provider openai --api-key sk-... --library-id /vercel/next.js --force
+```
+
+### Using the Re-embedding Script
+
+The `scripts/re-embed.sh` script provides a user-friendly interface for re-embedding with progress reporting, time estimation, and statistics.
+
+#### Installation (First Time)
+
+The script is included in the repository and is executable. If not already executable, run:
+```bash
+chmod +x scripts/re-embed.sh
+```
+
+#### Basic Usage
+
+**Interactive Mode (Recommended):**
+```bash
+./scripts/re-embed.sh
+```
+
+The script will prompt you for:
+1. Database path (default: `./docs.db`)
+2. Embedding provider (1 for local, 2 for OpenAI)
+3. OpenAI API key (if you choose OpenAI)
+4. Library to re-embed (leave blank for all)
+5. Force regeneration (yes/no)
+
+**Command-Line Options:**
+```bash
+./scripts/re-embed.sh --provider local --force
+./scripts/re-embed.sh --provider openai --api-key sk-... --force
+./scripts/re-embed.sh --provider local --library-id /pytorch/pytorch --force
+./scripts/re-embed.sh --db custom.db --provider local --force
+```
+
+**Configuration File:**
+```bash
+./scripts/re-embed.sh --config config.json --force
+```
+
+#### Script Options Reference
+
+| Option | Short | Type | Description | Default |
+|--------|-------|------|-------------|---------|
+| `--provider` | `-p` | string | `local` or `openai` | interactive |
+| `--api-key` | `-k` | string | API key for external providers | from env |
+| `--model` | `-m` | string | Model name (advanced) | provider default |
+| `--library-id` | `-l` | string | Re-embed specific library only | all libraries |
+| `--db` | `-d` | string | Database file path | `./docs.db` |
+| `--config` | `-c` | string | Configuration file path | auto-detect |
+| `--force` | `-f` | flag | Force regeneration even if embeddings exist | false |
+| `--help` | `-h` | flag | Show detailed help | - |
+
+#### Understanding Script Output
+
+When you run the script, you'll see:
+
+```
+ℹ local_context7 - Re-embedding Automation Script
+
+ℹ Checking embedding statistics...
+✓ Total snippets in database: 244127
+✓ Already embedded: 244127
+✓ Need embedding: 0
+
+ℹ Using local provider: Xenova/all-MiniLM-L6-v2
+ℹ Estimated time to re-embed: 2h 15m
+
+Configuration:
+  Provider: local
+  Force: Yes
+  Snippets to process: 244127
+
+Continue with re-embedding? (y/N): 
+```
+
+The script shows:
+- **Statistics**: How many snippets need embeddings
+- **Provider**: Which embedding provider will be used
+- **Estimate**: Time required based on snippet count and provider
+- **Progress**: Real-time progress during re-embedding
+- **Results**: Embeddings created and time taken
+
+### Use Cases and Examples
+
+#### Scenario 1: Download Release and Re-embed with OpenAI
+
+You've downloaded the pre-built database and want to use OpenAI embeddings instead:
+
+```bash
+# Download the release database
+curl -L https://github.com/kyuns-96/context7_local/releases/download/v1.0.2/docs.db.tar.gz | tar -xz
+mv docs-release.db docs.db
+
+# Re-embed with OpenAI (requires API key)
+./scripts/re-embed.sh --provider openai --api-key sk-... --force
+
+# Verify embeddings
+bun run src/cli/index.ts list --db docs.db
+```
+
+#### Scenario 2: Re-embed Single Library After Update
+
+You've updated a library with `ingest` and want to ensure it has quality embeddings:
+
+```bash
+# Re-embed just the PyTorch library
+./scripts/re-embed.sh \
+  --provider openai \
+  --api-key sk-... \
+  --library-id /pytorch/pytorch \
+  --force
+
+# Verify the library's embeddings
+bun run src/cli/index.ts list --db docs.db | grep pytorch
+```
+
+#### Scenario 3: Switch from OpenAI to Local (Cost Savings)
+
+You've been using OpenAI but want to switch to the free local provider:
+
+```bash
+# Re-embed all libraries with local provider
+./scripts/re-embed.sh --provider local --force
+
+# No API key needed, runs completely offline
+# Takes longer but saves costs
+```
+
+#### Scenario 4: Air-gapped Environment Setup
+
+You're deploying to an air-gapped environment and need local embeddings:
+
+```bash
+# On internet-connected machine:
+./scripts/re-embed.sh --provider local --force
+
+# Transfer docs.db to air-gapped server
+scp docs.db user@server:/path/to/
+
+# Server can now run without internet
+bun run src/server/index.ts --transport http --port 3000 --db docs.db
+```
+
+#### Scenario 5: Using Configuration File
+
+Create a `config.json` for repeated re-embedding operations:
+
+```json
+{
+  "embedding": {
+    "provider": "openai",
+    "apiKey": "sk-...",
+    "model": "text-embedding-3-small"
+  }
+}
+```
+
+Then use it:
+```bash
+./scripts/re-embed.sh --config config.json --force
+
+# Or with environment variable
+EMBEDDING_API_KEY=sk-... ./scripts/re-embed.sh --config config.json --force
+```
+
+### Manual Method: Using vectorize Command Directly
+
+If you prefer not to use the automation script, you can use the `vectorize` CLI command directly:
+
+```bash
+# Re-embed all snippets with OpenAI
+bun run src/cli/index.ts vectorize \
+  --db docs.db \
+  --embedding-provider openai \
+  --embedding-api-key sk-... \
+  --force
+
+# Re-embed specific library
+bun run src/cli/index.ts vectorize \
+  --db docs.db \
+  --library-id /vercel/next.js \
+  --force
+
+# Using local provider
+bun run src/cli/index.ts vectorize --db docs.db --force
+```
+
+### Performance and Cost Considerations
+
+#### Local Provider (Xenova/all-MiniLM-L6-v2)
+
+| Metric | Value |
+|--------|-------|
+| **Time for 244k snippets** | 2-3 hours |
+| **Cost** | Free |
+| **Embedding dimensions** | 384 |
+| **Requirements** | ~23MB model (cached) |
+| **Best for** | Air-gapped, privacy, cost-sensitive |
+| **Model size on disk** | ~1.5KB per embedding |
+
+**When to use:**
+- Air-gapped or offline environments
+- Privacy is critical
+- Cost is a concern
+- Local-only deployments
+
+#### OpenAI Provider (text-embedding-3-small)
+
+| Metric | Value |
+|--------|-------|
+| **Time for 244k snippets** | 1-2 hours |
+| **Cost** | ~$1-2 for full database |
+| **Embedding dimensions** | 1536 |
+| **Requirements** | API key + internet |
+| **Best for** | Production, quality, speed |
+| **Model size on disk** | ~1.5KB per embedding |
+
+**When to use:**
+- Production environments with internet access
+- Higher embedding quality is needed
+- Faster re-embedding is preferred
+- Budget allows for minimal costs
+
+**Cost estimation:**
+```
+OpenAI text-embedding-3-small:
+- Cost: $0.02 per 1 million input tokens
+- Average: 100 tokens per snippet
+- 244k snippets × 100 tokens = 24.4M tokens
+- Cost: $0.488 (less than $1)
+```
+
+**OpenAI text-embedding-3-large** (higher quality, ~3x cost):
+```
+- Cost: $0.06 per 1 million input tokens
+- 244k snippets × 100 tokens = 24.4M tokens
+- Cost: $1.46
+```
+
+### Advanced Configuration
+
+#### Using Environment Variables
+
+Instead of command-line flags, use environment variables for cleaner workflows:
+
+```bash
+export EMBEDDING_PROVIDER=openai
+export EMBEDDING_API_KEY=sk-...
+export EMBEDDING_MODEL=text-embedding-3-small
+
+./scripts/re-embed.sh --force
+```
+
+Or inline:
+```bash
+EMBEDDING_PROVIDER=openai \
+EMBEDDING_API_KEY=sk-... \
+./scripts/re-embed.sh --force
+```
+
+#### Custom Database Paths
+
+For multiple databases or testing:
+
+```bash
+./scripts/re-embed.sh --db prod.db --provider openai --api-key sk-... --force
+./scripts/re-embed.sh --db staging.db --provider local --force
+```
+
+#### Resuming Interrupted Re-embedding
+
+If re-embedding is interrupted (Ctrl+C), you can resume:
+
+```bash
+# First attempt (interrupted)
+./scripts/re-embed.sh --provider openai --api-key sk-... --force
+# (Ctrl+C after 1 hour)
+
+# Resume without --force (skips already embedded snippets)
+./scripts/re-embed.sh --provider openai --api-key sk-...
+```
+
+Without `--force`, the script only embeds snippets that don't yet have embeddings.
+
+### Troubleshooting
+
+#### Problem: "Database file not found"
+
+```bash
+Error: Database file not found: ./docs.db
+```
+
+**Solution**: Create a database first:
+```bash
+bun run src/cli/index.ts ingest https://github.com/vercel/next.js --db docs.db
+```
+
+#### Problem: "Bun is not installed or not in PATH"
+
+```bash
+Error: Bun is not installed or not in PATH
+```
+
+**Solution**: Install Bun from https://bun.sh
+
+#### Problem: "OpenAI provider requires API key"
+
+```bash
+Error: OpenAI provider requires API key
+```
+
+**Solution**: Provide the API key via flag or environment variable:
+```bash
+./scripts/re-embed.sh --api-key sk-... --force
+# or
+EMBEDDING_API_KEY=sk-... ./scripts/re-embed.sh --force
+```
+
+#### Problem: "API key doesn't look like an OpenAI key"
+
+```bash
+Warning: API key doesn't look like an OpenAI key (should start with 'sk-')
+```
+
+**Solution**: Double-check your API key from https://platform.openai.com/api-keys
+
+### Next Steps
+
+After re-embedding:
+
+1. **Verify embeddings**: Check that embeddings were created
+   ```bash
+   bun run src/cli/index.ts list --db docs.db
+   ```
+
+2. **Test search**: Try semantic search with the new embeddings
+   ```bash
+   # In OpenCode or your MCP client
+   # Use searchMode: "semantic" or "hybrid" in query-docs
+   ```
+
+3. **Monitor results**: Test search quality and adjust if needed
+   ```bash
+   # Compare results between providers
+   # Use semantic mode for one, keyword mode for the other
+   ```
+
+4. **Update production**: Once satisfied, deploy updated database
+   ```bash
+   scp docs.db user@server:/path/to/
+   systemctl restart context7-local  # or your service manager
+   ```
+
 ## 10. Reranking
 
 `local_context7` includes a reranking system that significantly improves search precision by re-scoring candidate documents using cross-encoder models.
