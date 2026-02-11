@@ -376,7 +376,209 @@ Based on MS MARCO benchmarks, enabling reranking typically yields:
 - **Precision@5**: 60% → 75-85% (+15-25%)
 - **Overall Quality**: Significantly fewer "hallucinations" caused by irrelevant context.
 
-## 11. Known Limitations
+## 11. Configuration File
+
+Instead of specifying embedding and reranking settings via CLI flags every time, you can create a configuration file once and reference it with a simple `--config` flag.
+
+### Why Use a Configuration File?
+
+**Without config file** (8+ flags to remember):
+```bash
+bun run src/cli/index.ts ingest https://github.com/vercel/next.js \
+  --db docs.db \
+  --embedding-provider openai \
+  --embedding-api-key sk-... \
+  --embedding-model text-embedding-3-small \
+  --embedding-api-url https://api.openai.com/v1/embeddings \
+  --reranking-provider cohere \
+  --reranking-api-key co-... \
+  --reranking-model rerank-english-v3.0 \
+  --reranking-api-url https://api.cohere.ai/v1/rerank
+```
+
+**With config file** (much simpler):
+```bash
+bun run src/cli/index.ts ingest https://github.com/vercel/next.js \
+  --db docs.db \
+  --config config.json
+```
+
+### File Structure
+
+Create a `config.json` file in your project root with your provider settings:
+
+```json
+{
+  "embedding": {
+    "provider": "openai",
+    "apiKey": "sk-...",
+    "model": "text-embedding-3-small",
+    "apiUrl": "https://api.openai.com/v1/embeddings"
+  },
+  "reranking": {
+    "provider": "cohere",
+    "apiKey": "co-...",
+    "model": "rerank-english-v3.0",
+    "apiUrl": "https://api.cohere.ai/v1/rerank"
+  }
+}
+```
+
+**All fields are optional.** You can configure just embedding, just reranking, or both. Omit fields to use defaults.
+
+**Minimal example** (use OpenAI with defaults):
+```json
+{
+  "embedding": {
+    "provider": "openai",
+    "apiKey": "sk-..."
+  }
+}
+```
+
+**Air-gapped example** (local providers only):
+```json
+{
+  "embedding": {
+    "provider": "local"
+  },
+  "reranking": {
+    "provider": "local"
+  }
+}
+```
+
+### Default Paths
+
+If you don't specify `--config`, the system automatically checks these locations:
+1. `./config.json` (current directory)
+2. `./local_context7.config.json` (current directory)
+
+If neither file exists, the system continues without error and uses CLI flags, environment variables, or defaults.
+
+### Usage Examples
+
+**Basic usage:**
+```bash
+bun run src/cli/index.ts ingest https://github.com/vercel/next.js \
+  --db docs.db \
+  --config config.json
+```
+
+**Custom config path:**
+```bash
+bun run src/cli/index.ts ingest https://github.com/vercel/next.js \
+  --db docs.db \
+  --config /path/to/my-config.json
+```
+
+**Override specific settings:**
+```bash
+# Use config.json for most settings, but override embedding provider for this run
+bun run src/cli/index.ts ingest https://github.com/vercel/next.js \
+  --db docs.db \
+  --config config.json \
+  --embedding-provider local  # Overrides config file
+```
+
+**Automatic config discovery:**
+```bash
+# If config.json exists in current directory, it's loaded automatically
+bun run src/cli/index.ts ingest https://github.com/vercel/next.js --db docs.db
+```
+
+### Priority Order
+
+Settings are merged in this priority order (highest to lowest):
+
+1. **CLI flags** (highest priority)
+2. **Config file** (`--config` or auto-discovered)
+3. **Environment variables** (`EMBEDDING_PROVIDER`, etc.)
+4. **Defaults** (lowest priority)
+
+This means you can set baseline configuration in a file, but still override individual settings via CLI flags when needed.
+
+### Configuration Options Reference
+
+| Config Field | Valid Values | Default | Description |
+|--------------|--------------|---------|-------------|
+| `embedding.provider` | `local`, `openai` | `local` | Embedding service to use |
+| `embedding.apiKey` | string | - | API key (required for `openai`) |
+| `embedding.model` | string | See provider docs | Model name override |
+| `embedding.apiUrl` | URL | Provider default | Custom API endpoint |
+| `reranking.provider` | `none`, `local`, `cohere`, `jina` | `none` | Reranker to use |
+| `reranking.apiKey` | string | - | API key (required for API providers) |
+| `reranking.model` | string | See provider docs | Model name override |
+| `reranking.apiUrl` | URL | Provider default | Custom API endpoint |
+
+### Security Notes
+
+**IMPORTANT: Protect your API keys**
+
+1. **Never commit real API keys to version control.**
+   - `config.json` and `local_context7.config.json` are already in `.gitignore`
+   - Use `config.example.json` (included) as a template for version control
+
+2. **Use environment-specific config files:**
+   ```bash
+   # Development
+   cp config.example.json config.dev.json
+   # Edit config.dev.json with dev API keys
+   
+   # Production
+   cp config.example.json config.prod.json
+   # Edit config.prod.json with prod API keys
+   
+   # Add to .gitignore
+   echo "config.*.json" >> .gitignore
+   ```
+
+3. **For shared repositories, document config structure without keys:**
+   - Commit `config.example.json` with placeholder values
+   - Document required fields in README (this section)
+   - Never commit files with actual API keys
+
+4. **Rotate keys immediately if exposed:**
+   - OpenAI: https://platform.openai.com/api-keys
+   - Cohere: https://dashboard.cohere.com/api-keys
+   - Jina: https://jina.ai/api-keys
+
+### Example: Team Setup
+
+**Step 1**: Create `config.example.json` (safe to commit):
+```json
+{
+  "embedding": {
+    "provider": "openai",
+    "apiKey": "YOUR_OPENAI_API_KEY_HERE",
+    "model": "text-embedding-3-small"
+  },
+  "reranking": {
+    "provider": "cohere",
+    "apiKey": "YOUR_COHERE_API_KEY_HERE"
+  }
+}
+```
+
+**Step 2**: Team members copy and fill in real keys:
+```bash
+cp config.example.json config.json
+# Edit config.json with your actual API keys
+```
+
+**Step 3**: Use consistently across all commands:
+```bash
+bun run src/cli/index.ts ingest --preset react --db docs.db --config config.json
+bun run src/cli/index.ts vectorize --db docs.db --config config.json
+```
+
+### Supported Commands
+
+The `--config` flag is supported by these CLI commands:
+- `ingest`: Ingest documentation with embedding/reranking settings
+- `vectorize`: Generate embeddings using config file settings
+
+## 12. Known Limitations
 
 - **Embedding Model Size**: The vector search model is ~23MB. It downloads automatically on first use and is cached locally.
 - **Embeddings Optional**: Vector search requires embeddings. Keyword search works without them.
