@@ -51,7 +51,8 @@ export function queryDocumentation(
   query: string,
   libraryId: string,
   version: string,
-  db: Database
+  db: Database,
+  limit: number = 20
 ): DocumentationSnippet[] {
   const stmt = db.query(`
     SELECT 
@@ -71,10 +72,10 @@ export function queryDocumentation(
       AND s.library_id = ?2
       AND s.library_version = ?3
     ORDER BY fts.rank
-    LIMIT 20
+    LIMIT ?4
   `);
 
-  return stmt.all(query, libraryId, version) as DocumentationSnippet[];
+  return stmt.all(query, libraryId, version, limit) as DocumentationSnippet[];
 }
 
 export function queryDocumentationByVector(
@@ -140,7 +141,8 @@ export function queryDocumentationHybrid(
   db: Database,
   limit: number = 20
 ): DocumentationSnippet[] {
-  // 1. Run FTS5 search
+  // 1. Run FTS5 search with more candidates if reranking is possible
+  const candidateLimit = Math.max(limit * 5, 100); // Get 5x the limit or at least 100
   const ftsStmt = db.query(`
     SELECT 
       s.id,
@@ -158,10 +160,10 @@ export function queryDocumentationHybrid(
     WHERE fts.snippets_fts MATCH ?1
       AND s.library_id = ?2
       AND s.library_version = ?3
-    LIMIT 100
+    LIMIT ?4
   `);
-  
-  const ftsResults = ftsStmt.all(query, libraryId, version) as (DocumentationSnippet & { fts_score: number })[];
+   
+   const ftsResults = ftsStmt.all(query, libraryId, version, candidateLimit) as (DocumentationSnippet & { fts_score: number })[];
   
   // 2. Run vector search
   const queryEmbeddingStr = JSON.stringify(queryEmbedding);

@@ -5,8 +5,10 @@ import {
   queryDocumentationByVector,
   queryDocumentationHybrid,
   type LibrarySearchResult,
+  type DocumentationSnippet,
 } from "../db/queries";
 import { generateEmbedding } from "../embeddings/generator";
+import { rerank } from "../reranking/manager";
 
 export interface ToolResponse {
   content: Array<{ type: "text"; text: string }>;
@@ -21,6 +23,8 @@ interface QueryDocsInput {
   query: string;
   libraryId: string;
   searchMode?: "keyword" | "semantic" | "hybrid";
+  useReranking?: boolean;
+  topK?: number;
 }
 
 function getSourceReputationLabel(
@@ -114,7 +118,7 @@ ${formattedResults.join("\n----------\n")}`;
 }
 
 export async function handleQueryDocs(input: QueryDocsInput, db: Database): Promise<ToolResponse> {
-  const { searchMode = "hybrid" } = input;
+  const { searchMode = "hybrid", useReranking = false, topK = 10 } = input;
   const parts = input.libraryId.split("/").filter((p) => p);
   let libraryId: string;
   let version: string;
@@ -136,7 +140,9 @@ export async function handleQueryDocs(input: QueryDocsInput, db: Database): Prom
     };
   }
 
-  let results;
+  const candidateLimit = useReranking ? 100 : topK;
+
+  let results: (DocumentationSnippet & { rerankScore?: number })[];
 
   try {
     if (searchMode === "semantic" || searchMode === "hybrid") {
@@ -144,24 +150,24 @@ export async function handleQueryDocs(input: QueryDocsInput, db: Database): Prom
       const queryEmbedding = await generateEmbedding(input.query);
 
       if (queryEmbedding) {
-        console.log(`[MCP] Using ${searchMode} search mode`);
+        console.log(`[MCP] Using ${searchMode} search mode (retrieving ${candidateLimit} candidates)`);
         if (searchMode === "semantic") {
-          results = queryDocumentationByVector(queryEmbedding, libraryId, version, db);
+          results = queryDocumentationByVector(queryEmbedding, libraryId, version, db, candidateLimit);
         } else {
-          results = queryDocumentationHybrid(input.query, queryEmbedding, libraryId, version, db);
+          results = queryDocumentationHybrid(input.query, queryEmbedding, libraryId, version, db, candidateLimit);
         }
       } else {
         console.warn("[MCP] Failed to generate embedding, falling back to keyword search");
-        results = queryDocumentation(input.query, libraryId, version, db);
+        results = queryDocumentation(input.query, libraryId, version, db, candidateLimit);
       }
     } else {
-      console.log("[MCP] Using keyword search mode");
-      results = queryDocumentation(input.query, libraryId, version, db);
+      console.log(`[MCP] Using keyword search mode (retrieving ${candidateLimit} candidates)`);
+      results = queryDocumentation(input.query, libraryId, version, db, candidateLimit);
     }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     console.error(`[MCP] Search error: ${errorMessage}, falling back to keyword search`);
-    results = queryDocumentation(input.query, libraryId, version, db);
+    results = queryDocumentation(input.query, libraryId, version, db, candidateLimit);
   }
 
   if (results.length === 0) {
@@ -173,6 +179,29 @@ export async function handleQueryDocs(input: QueryDocsInput, db: Database): Prom
         },
       ],
     };
+  }
+
+  if (useReranking && results.length > 0) {
+    console.log(`[MCP] Reranking ${results.length} candidates to top ${topK}`);
+    const documents = results.map(r => r.content);
+    
+    try {
+      const rankedResults = await rerank(input.query, documents, topK);
+      
+      results = rankedResults.map(r => {
+        const original = results[r.originalIndex];
+        return { 
+          ...original,
+          rerankScore: r.score
+        } as DocumentationSnippet & { rerankScore: number };
+      });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error(`[MCP] Reranking error: ${errorMessage}, using search results without reranking`);
+      results = results.slice(0, topK);
+    }
+  } else if (!useReranking) {
+    results = results.slice(0, topK);
   }
 
   const snippets = results
