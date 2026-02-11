@@ -12,6 +12,7 @@ import { parseMarkdown } from "../scraper/markdown";
 import { chunkDocument } from "../scraper/chunker";
 import { generateEmbeddings } from "../embeddings/generator";
 import { initializeProvider } from "../embeddings/generator";
+import { initializeReranker } from "../reranking/manager";
 
 export interface ParsedCommand {
   command: string;
@@ -27,6 +28,10 @@ export interface ParsedCommand {
   embeddingApiKey?: string;
   embeddingModel?: string;
   embeddingApiUrl?: string;
+  rerankingProvider?: 'none' | 'local' | 'cohere' | 'jina';
+  rerankingApiKey?: string;
+  rerankingModel?: string;
+  rerankingApiUrl?: string;
 }
 
 export function parseCliCommand(args: string[]): ParsedCommand {
@@ -36,37 +41,45 @@ export function parseCliCommand(args: string[]): ParsedCommand {
 
   let parsedResult: ParsedCommand = { command: "" };
 
-  program
-    .command("ingest")
-    .description("Ingest a library from a GitHub repository")
-    .argument("[repo-url]", "GitHub repository URL")
-    .requiredOption("--db <path>", "Path to SQLite database file")
-    .option("--version <tag>", "Git tag or branch name to checkout")
-    .option("--docs-path <glob>", "Path to documentation directory")
-    .option("--preset <name>", "Use a preset library configuration")
-    .option("--preset-all", "Ingest all preset libraries")
-    .option("--embedding-provider <provider>", "Embedding provider: 'local' or 'openai'", "local")
-    .option("--embedding-api-key <key>", "API key for embedding provider")
-    .option("--embedding-model <model>", "Embedding model name")
-    .option("--embedding-api-url <url>", "Custom API endpoint URL")
-    .action((repoUrl, options) => {
+   program
+     .command("ingest")
+     .description("Ingest a library from a GitHub repository")
+     .argument("[repo-url]", "GitHub repository URL")
+     .requiredOption("--db <path>", "Path to SQLite database file")
+     .option("--version <tag>", "Git tag or branch name to checkout")
+     .option("--docs-path <glob>", "Path to documentation directory")
+     .option("--preset <name>", "Use a preset library configuration")
+     .option("--preset-all", "Ingest all preset libraries")
+     .option("--embedding-provider <provider>", "Embedding provider: 'local' or 'openai'", "local")
+     .option("--embedding-api-key <key>", "API key for embedding provider")
+     .option("--embedding-model <model>", "Embedding model name")
+     .option("--embedding-api-url <url>", "Custom API endpoint URL")
+     .option("--reranking-provider <provider>", "Reranking provider (none, local, cohere, or jina)", "none")
+     .option("--reranking-api-key <key>", "API key for reranking provider")
+     .option("--reranking-model <model>", "Reranking model name")
+     .option("--reranking-api-url <url>", "Custom reranking API endpoint URL")
+     .action((repoUrl, options) => {
       if (!options.presetAll && !repoUrl) {
         throw new Error("repo-url is required unless --preset-all is used");
       }
 
-      parsedResult = {
-        command: "ingest",
-        repoUrl,
-        db: options.db,
-        version: options.version,
-        docsPath: options.docsPath,
-        preset: options.preset,
-        presetAll: options.presetAll,
-        embeddingProvider: options.embeddingProvider,
-        embeddingApiKey: options.embeddingApiKey,
-        embeddingModel: options.embeddingModel,
-        embeddingApiUrl: options.embeddingApiUrl,
-      };
+       parsedResult = {
+         command: "ingest",
+         repoUrl,
+         db: options.db,
+         version: options.version,
+         docsPath: options.docsPath,
+         preset: options.preset,
+         presetAll: options.presetAll,
+         embeddingProvider: options.embeddingProvider,
+         embeddingApiKey: options.embeddingApiKey,
+         embeddingModel: options.embeddingModel,
+         embeddingApiUrl: options.embeddingApiUrl,
+         rerankingProvider: options.rerankingProvider,
+         rerankingApiKey: options.rerankingApiKey,
+         rerankingModel: options.rerankingModel,
+         rerankingApiUrl: options.rerankingApiUrl,
+       };
     });
 
   program
@@ -108,29 +121,37 @@ export function parseCliCommand(args: string[]): ParsedCommand {
       };
     });
 
-  program
-    .command("vectorize")
-    .description("Generate embeddings for existing documentation snippets")
-    .requiredOption("--db <path>", "Path to SQLite database file")
-    .option("--library-id <id>", "Only vectorize snippets for specific library")
-    .option("--version <version>", "Only vectorize snippets for specific version")
-    .option("--force", "Regenerate embeddings even if they already exist")
-    .option("--embedding-provider <provider>", "Embedding provider: 'local' or 'openai'", "local")
-    .option("--embedding-api-key <key>", "API key for embedding provider")
-    .option("--embedding-model <model>", "Embedding model name")
-    .option("--embedding-api-url <url>", "Custom API endpoint URL")
-    .action((options) => {
-      parsedResult = {
-        command: "vectorize",
-        db: options.db,
-        libraryId: options.libraryId,
-        version: options.version,
-        force: options.force,
-        embeddingProvider: options.embeddingProvider,
-        embeddingApiKey: options.embeddingApiKey,
-        embeddingModel: options.embeddingModel,
-        embeddingApiUrl: options.embeddingApiUrl,
-      };
+   program
+     .command("vectorize")
+     .description("Generate embeddings for existing documentation snippets")
+     .requiredOption("--db <path>", "Path to SQLite database file")
+     .option("--library-id <id>", "Only vectorize snippets for specific library")
+     .option("--version <version>", "Only vectorize snippets for specific version")
+     .option("--force", "Regenerate embeddings even if they already exist")
+     .option("--embedding-provider <provider>", "Embedding provider: 'local' or 'openai'", "local")
+     .option("--embedding-api-key <key>", "API key for embedding provider")
+     .option("--embedding-model <model>", "Embedding model name")
+     .option("--embedding-api-url <url>", "Custom API endpoint URL")
+     .option("--reranking-provider <provider>", "Reranking provider (none, local, cohere, or jina)", "none")
+     .option("--reranking-api-key <key>", "API key for reranking provider")
+     .option("--reranking-model <model>", "Reranking model name")
+     .option("--reranking-api-url <url>", "Custom reranking API endpoint URL")
+     .action((options) => {
+       parsedResult = {
+         command: "vectorize",
+         db: options.db,
+         libraryId: options.libraryId,
+         version: options.version,
+         force: options.force,
+         embeddingProvider: options.embeddingProvider,
+         embeddingApiKey: options.embeddingApiKey,
+         embeddingModel: options.embeddingModel,
+         embeddingApiUrl: options.embeddingApiUrl,
+         rerankingProvider: options.rerankingProvider,
+         rerankingApiKey: options.rerankingApiKey,
+         rerankingModel: options.rerankingModel,
+         rerankingApiUrl: options.rerankingApiUrl,
+       };
     });
 
   program.exitOverride((err) => {
@@ -185,15 +206,23 @@ async function handleIngest(parsed: ParsedCommand): Promise<void> {
     throw new Error("repo-url is required for ingest command");
   }
 
-  // Initialize embedding provider with CLI options or env vars
-  initializeProvider({
-    provider: parsed.embeddingProvider as 'local' | 'openai' | undefined,
-    apiKey: parsed.embeddingApiKey,
-    model: parsed.embeddingModel,
-    apiUrl: parsed.embeddingApiUrl,
-  });
+   // Initialize embedding provider with CLI options or env vars
+   initializeProvider({
+     provider: parsed.embeddingProvider as 'local' | 'openai' | undefined,
+     apiKey: parsed.embeddingApiKey,
+     model: parsed.embeddingModel,
+     apiUrl: parsed.embeddingApiUrl,
+   });
 
-  const options: IngestOptions = {
+   // Initialize reranking provider with CLI options or env vars
+   initializeReranker({
+     reranker: parsed.rerankingProvider as 'none' | 'local' | 'cohere' | 'jina' | undefined,
+     apiKey: parsed.rerankingApiKey,
+     model: parsed.rerankingModel,
+     apiUrl: parsed.rerankingApiUrl,
+   });
+
+   const options: IngestOptions = {
     version: parsed.version,
     docsPath: parsed.docsPath,
   };
@@ -341,15 +370,23 @@ async function handleVectorize(parsed: ParsedCommand): Promise<void> {
     throw new Error("--db is required for vectorize command");
   }
 
-  // Initialize embedding provider with CLI options or env vars
-  initializeProvider({
-    provider: parsed.embeddingProvider as 'local' | 'openai' | undefined,
-    apiKey: parsed.embeddingApiKey,
-    model: parsed.embeddingModel,
-    apiUrl: parsed.embeddingApiUrl,
-  });
+   // Initialize embedding provider with CLI options or env vars
+   initializeProvider({
+     provider: parsed.embeddingProvider as 'local' | 'openai' | undefined,
+     apiKey: parsed.embeddingApiKey,
+     model: parsed.embeddingModel,
+     apiUrl: parsed.embeddingApiUrl,
+   });
 
-  const db = openDatabase(parsed.db);
+   // Initialize reranking provider with CLI options or env vars
+   initializeReranker({
+     reranker: parsed.rerankingProvider as 'none' | 'local' | 'cohere' | 'jina' | undefined,
+     apiKey: parsed.rerankingApiKey,
+     model: parsed.rerankingModel,
+     apiUrl: parsed.rerankingApiUrl,
+   });
+
+   const db = openDatabase(parsed.db);
 
   try {
     // Build query based on filters
