@@ -1,0 +1,12 @@
+{
+  "embedding": {
+    "provider": "local",
+    "model": "Xenova/all-MiniLM-L6-v2",
+    "apiUrl": "https://api.openai.com/v1/embeddings"
+  },
+  "reranking": {
+    "provider": "none",
+    "model": "cross-encoder/ms-marco-MiniLM-L-6-v2",
+    "apiUrl": "https://api.cohere.ai/v1/rerank"
+  }
+}

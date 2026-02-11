@@ -38,3 +38,7 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 *.db
 *.db-shm
 *.db-wal
+
+# Configuration files (contain sensitive API keys)
+config.json
+local_context7.config.json
