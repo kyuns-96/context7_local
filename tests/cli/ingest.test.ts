@@ -179,7 +179,7 @@ describe("Ingest Library", () => {
 
     const snippet = db
       .query(
-        "SELECT title, content, source_path, source_url, language, token_count, breadcrumb FROM snippets WHERE library_id = ? LIMIT 1"
+        "SELECT title, content, source_path, source_url, language, token_count, breadcrumb, embedding FROM snippets WHERE library_id = ? LIMIT 1"
       )
       .get("/test/library") as any;
 
@@ -189,6 +189,35 @@ describe("Ingest Library", () => {
     expect(snippet.source_path).toBeTruthy();
     expect(snippet.source_url).toContain("github.com/test/library/blob/main/");
     expect(snippet.token_count).toBeGreaterThan(0);
+
+    db.close();
+  });
+
+  test("generates embeddings for all snippets during ingestion", async () => {
+    const repoDir = createMockRepo(tempDir);
+    const repoUrl = "https://github.com/test/library";
+
+    await ingestLibrary(repoUrl, dbPath, { localPath: repoDir });
+
+    const db = openDatabase(dbPath, true);
+
+    const snippets = db
+      .query("SELECT embedding FROM snippets WHERE library_id = ?")
+      .all("/test/library") as any[];
+
+    expect(snippets.length).toBeGreaterThan(0);
+
+    for (const snippet of snippets) {
+      expect(snippet.embedding).toBeTruthy();
+      
+      const embedding = JSON.parse(snippet.embedding);
+      expect(Array.isArray(embedding)).toBe(true);
+      expect(embedding.length).toBe(384);
+      
+      for (const value of embedding) {
+        expect(typeof value).toBe("number");
+      }
+    }
 
     db.close();
   });

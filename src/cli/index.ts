@@ -10,6 +10,7 @@ import {
 } from "../scraper/github";
 import { parseMarkdown } from "../scraper/markdown";
 import { chunkDocument } from "../scraper/chunker";
+import { generateEmbeddings } from "../embeddings/generator";
 
 export interface ParsedCommand {
   command: string;
@@ -20,6 +21,7 @@ export interface ParsedCommand {
   preset?: string;
   presetAll?: boolean;
   libraryId?: string;
+  force?: boolean;
 }
 
 export function parseCliCommand(args: string[]): ParsedCommand {
@@ -93,6 +95,23 @@ export function parseCliCommand(args: string[]): ParsedCommand {
       };
     });
 
+  program
+    .command("vectorize")
+    .description("Generate embeddings for existing documentation snippets")
+    .requiredOption("--db <path>", "Path to SQLite database file")
+    .option("--library-id <id>", "Only vectorize snippets for specific library")
+    .option("--version <version>", "Only vectorize snippets for specific version")
+    .option("--force", "Regenerate embeddings even if they already exist")
+    .action((options) => {
+      parsedResult = {
+        command: "vectorize",
+        db: options.db,
+        libraryId: options.libraryId,
+        version: options.version,
+        force: options.force,
+      };
+    });
+
   program.exitOverride((err) => {
     throw new Error(err.message);
   });
@@ -119,6 +138,9 @@ export async function executeCommand(parsed: ParsedCommand): Promise<void> {
       break;
     case "preview":
       await handlePreview(parsed);
+      break;
+    case "vectorize":
+      await handleVectorize(parsed);
       break;
     default:
       throw new Error(`Unknown command: ${parsed.command}`);
@@ -285,12 +307,87 @@ async function handlePreview(parsed: ParsedCommand): Promise<void> {
   }
 }
 
+async function handleVectorize(parsed: ParsedCommand): Promise<void> {
+  if (!parsed.db) {
+    throw new Error("--db is required for vectorize command");
+  }
+
+  const db = openDatabase(parsed.db);
+
+  try {
+    // Build query based on filters
+    let query = `SELECT id, content FROM snippets WHERE 1=1`;
+    const params: any[] = [];
+
+    if (!parsed.force) {
+      query += ` AND embedding IS NULL`;
+    }
+    if (parsed.libraryId) {
+      query += ` AND library_id = ?`;
+      params.push(parsed.libraryId);
+    }
+    if (parsed.version) {
+      query += ` AND library_version = ?`;
+      params.push(parsed.version);
+    }
+
+    const snippets = db.query(query).all(...params) as Array<{ id: number; content: string }>;
+    
+    if (snippets.length === 0) {
+      console.log("No snippets found to vectorize.");
+      return;
+    }
+
+    console.log(`Found ${snippets.length} snippets to vectorize`);
+
+    // Generate embeddings in batches
+    const BATCH_SIZE = 10;
+    let updated = 0;
+
+    for (let i = 0; i < snippets.length; i += BATCH_SIZE) {
+      const batch = snippets.slice(i, i + BATCH_SIZE);
+      const contents = batch.map(s => s.content);
+
+      try {
+        const embeddings = await generateEmbeddings(contents);
+
+        db.exec("BEGIN");
+        try {
+          for (let j = 0; j < batch.length; j++) {
+            const snippet = batch[j];
+            if (!snippet) continue;
+            const embedding = embeddings[j];
+            const embeddingStr = embedding ? JSON.stringify(embedding) : null;
+            db.run("UPDATE snippets SET embedding = ? WHERE id = ?", [embeddingStr, snippet.id]);
+            updated++;
+          }
+          db.exec("COMMIT");
+        } catch (error) {
+          db.exec("ROLLBACK");
+          throw error;
+        }
+
+        const progress = Math.min(i + BATCH_SIZE, snippets.length);
+        console.log(`Vectorized ${progress}/${snippets.length} snippets`);
+      } catch (error: any) {
+        console.warn(`Failed to vectorize batch: ${error.message}`);
+      }
+    }
+
+    console.log(`\nUpdated ${updated} snippets with embeddings`);
+  } finally {
+    db.close();
+  }
+}
+
 async function main() {
   const parsed = parseCliCommand(process.argv.slice(2));
   await executeCommand(parsed);
 }
 
-main().catch((error) => {
-  console.error("Fatal error in main():", error);
-  process.exit(1);
-});
+if (import.meta.main) {
+  main().catch((error) => {
+    console.error("Fatal error in main():", error);
+    process.exit(1);
+  });
+}

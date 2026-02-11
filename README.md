@@ -69,6 +69,7 @@ bun run src/cli/index.ts ingest https://github.com/my/repo --docs-path "document
 - **List ingested libraries**: `bun run src/cli/index.ts list --db docs.db`
 - **Remove a library**: `bun run src/cli/index.ts remove /org/project --db docs.db`
 - **Preview ingestion**: `bun run src/cli/index.ts preview https://github.com/my/repo`
+- **Generate embeddings**: `bun run src/cli/index.ts vectorize --db docs.db`
 
 ## 4. Running the Server
 
@@ -127,20 +128,24 @@ Follow these steps to deploy `local_context7` in a network-restricted environmen
 
 1.  **Preparation**: On an internet-connected machine, install Bun and clone the repository.
 2.  **Dependencies**: Run `bun install` to download all necessary packages.
-3.  **Data Ingestion**: Download the documentation you need:
+3.  **Embedding Model**: Run any command that triggers embedding generation (like `vectorize` or `ingest`) to download the `Xenova/all-MiniLM-L6-v2` model (~23MB). The model is cached in the `~/.cache` directory.
+4.  **Data Ingestion**: Download the documentation you need:
     ```bash
     bun run src/cli/index.ts ingest --preset-all --db docs.db
     ```
-4.  **Build Binary**: Compile a standalone executable for the target server:
+5.  **Build Binary**: Compile a standalone executable for the target server:
     ```bash
     bun build --compile src/server/index.ts --outfile context7-local
     ```
-5.  **Transfer**: Copy the `context7-local` binary and the `docs.db` file to your air-gapped server.
-6.  **Startup**: Run the server on the air-gapped machine:
+6.  **Transfer**: Copy the following to your air-gapped server:
+    - The `context7-local` binary
+    - The `docs.db` file
+    - The cached model files from `~/.cache/onnxruntime` and `~/.cache/huggingface` (or ensure they are reachable by the binary)
+7.  **Startup**: Run the server on the air-gapped machine:
     ```bash
     ./context7-local --transport http --port 3000 --db /path/to/docs.db
     ```
-7.  **Client Config**: Configure OpenCode on developer machines to point to the server's IP: `http://server:3000/mcp`.
+8.  **Client Config**: Configure OpenCode on developer machines to point to the server's IP: `http://server:3000/mcp`.
 
 ## 7. Adding New Libraries
 
@@ -159,9 +164,68 @@ To add new library shortcuts to the registry, edit `data/presets.json`:
 
 Once added, you can use `bun run src/cli/index.ts ingest --preset new-lib --db docs.db`.
 
-## 8. Known Limitations
+## 8. Vector Search (Semantic Search)
 
-- **Keyword Search Only**: Uses SQLite FTS5. Does not support semantic or vector-based search.
+`local_context7` supports semantic search using vector embeddings, allowing you to find relevant documentation based on meaning rather than just keyword matches.
+
+### How It Works
+- Embeddings are automatically generated during ingestion using the `Xenova/all-MiniLM-L6-v2` model (~23MB).
+- Documents are converted to 384-dimensional vectors.
+- Queries are matched using cosine similarity.
+- No internet required after the model is downloaded once and cached locally.
+
+### Search Modes
+The `query-docs` tool supports three search modes through the `searchMode` parameter:
+
+1.  **keyword**: Traditional full-text search (FTS5).
+2.  **semantic**: Vector similarity search (requires embeddings).
+3.  **hybrid**: Combined approach (30% keyword rank + 70% semantic similarity) - **default**.
+
+### Using Search Modes in Queries
+When using the `query-docs` tool, you can specify the `searchMode` parameter. If omitted, it defaults to `hybrid`.
+
+**Example (MCP Tool Call):**
+```json
+{
+  "name": "query-docs",
+  "arguments": {
+    "libraryId": "/vercel/next.js",
+    "query": "how to use server components",
+    "searchMode": "semantic"
+  }
+}
+```
+
+### Generating Embeddings
+Embeddings are generated automatically during standard ingestion:
+```bash
+bun run src/cli/index.ts ingest https://github.com/vercel/next.js --db docs.db
+```
+
+### Regenerating Embeddings
+Use the `vectorize` command to add embeddings to existing data or regenerate them after a model update:
+
+```bash
+# Generate embeddings for all snippets that don't have them
+bun run src/cli/index.ts vectorize --db docs.db
+
+# Regenerate for a specific library
+bun run src/cli/index.ts vectorize --db docs.db --library-id /vercel/next.js
+
+# Force regeneration for all snippets (even if embeddings already exist)
+bun run src/cli/index.ts vectorize --db docs.db --force
+```
+
+### Performance Characteristics
+- **Model Loading**: ~100ms on first use.
+- **Query Embedding**: ~50ms per query.
+- **Search Latency**: Similar to keyword search (<100ms).
+- **Storage Overhead**: ~1.5KB per document chunk for embedding data.
+
+## 9. Known Limitations
+
+- **Embedding Model Size**: The vector search model is ~23MB. It downloads automatically on first use and is cached locally.
+- **Embeddings Optional**: Vector search requires embeddings. Keyword search works without them.
 - **RST Documentation**: Python libraries using reStructuredText (.rst) may have lower formatting quality compared to Markdown.
 - **GitHub Markdown**: Only parses Markdown files found in the repository. It does not crawl external websites or scrape HTML.
 - **No Authentication**: The HTTP server does not currently include authentication or rate limiting. It is intended for use within trusted private networks.

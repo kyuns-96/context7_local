@@ -1,7 +1,8 @@
-import { describe, test, expect, beforeEach, afterEach } from "bun:test";
+import { describe, test, expect, beforeEach, afterEach, spyOn } from "bun:test";
 import { Database } from "bun:sqlite";
 import { openDatabase } from "../../src/db/connection";
 import { handleResolveLibraryId, handleQueryDocs } from "../../src/server/tools";
+import * as embeddingGenerator from "../../src/embeddings/generator";
 
 describe("handleResolveLibraryId", () => {
   let db: Database;
@@ -29,16 +30,16 @@ describe("handleResolveLibraryId", () => {
     expect(result).toHaveProperty("content");
     expect(Array.isArray(result.content)).toBe(true);
     expect(result.content.length).toBe(1);
-    expect(result.content[0].type).toBe("text");
-    expect(result.content[0].text).toContain("Available Libraries:");
-    expect(result.content[0].text).toContain("Library ID:");
-    expect(result.content[0].text).toContain("/facebook/react");
+    expect(result.content[0]!.type).toBe("text");
+    expect(result.content[0]!.text).toContain("Available Libraries:");
+    expect(result.content[0]!.text).toContain("Library ID:");
+    expect(result.content[0]!.text).toContain("/facebook/react");
   });
 
   test("should include all required fields in response text", () => {
     const result = handleResolveLibraryId({ query: "next.js", libraryName: "next" }, db);
 
-    const text = result.content[0].text;
+    const text = result.content[0]!.text;
     expect(text).toContain("Library ID:");
     expect(text).toContain("Name:");
     expect(text).toContain("Description:");
@@ -51,7 +52,7 @@ describe("handleResolveLibraryId", () => {
   test("should group multiple versions in response", () => {
     const result = handleResolveLibraryId({ query: "next.js", libraryName: "next" }, db);
 
-    const text = result.content[0].text;
+    const text = result.content[0]!.text;
     expect(text).toContain("latest");
     expect(text).toContain("v14.0.0");
   });
@@ -62,14 +63,14 @@ describe("handleResolveLibraryId", () => {
       db
     );
 
-    const text = result.content[0].text;
+    const text = result.content[0]!.text;
     expect(text).toContain("No libraries found");
   });
 
   test("should map trust_score to Source Reputation labels", () => {
     const result = handleResolveLibraryId({ query: "react", libraryName: "react" }, db);
 
-    const text = result.content[0].text;
+    const text = result.content[0]!.text;
     expect(text).toMatch(/Source Reputation: (High|Medium|Low|Unknown)/);
   });
 });
@@ -97,8 +98,8 @@ describe("handleQueryDocs", () => {
     db.close();
   });
 
-  test("should return formatted documentation snippets", () => {
-    const result = handleQueryDocs(
+  test("should return formatted documentation snippets", async () => {
+    const result = await handleQueryDocs(
       { query: "useState hook", libraryId: "/facebook/react/latest" },
       db
     );
@@ -106,11 +107,11 @@ describe("handleQueryDocs", () => {
     expect(result).toHaveProperty("content");
     expect(Array.isArray(result.content)).toBe(true);
     expect(result.content.length).toBe(1);
-    expect(result.content[0].type).toBe("text");
-    expect(result.content[0].text).toContain("useState");
+    expect(result.content[0]!.type).toBe("text");
+    expect(result.content[0]!.text).toContain("useState");
   });
 
-  test("should parse versioned libraryId format /org/project/version", () => {
+  test("should parse versioned libraryId format /org/project/version", async () => {
     db.run(`
       INSERT INTO libraries (id, version, title, description, source_repo, total_snippets)
       VALUES ('/vercel/next.js', 'v14.0.0', 'Next.js v14', 'Next.js version 14', 'https://github.com/vercel/next.js', 1)
@@ -121,32 +122,118 @@ describe("handleQueryDocs", () => {
       VALUES ('/vercel/next.js', 'v14.0.0', 'App Router', 'Next.js App Router documentation', 'docs/routing.md', 'typescript', 80, 'Routing')
     `);
 
-    const result = handleQueryDocs(
+    const result = await handleQueryDocs(
       { query: "router", libraryId: "/vercel/next.js/v14.0.0" },
       db
     );
 
-    const text = result.content[0].text;
+    const text = result.content[0]!.text;
     expect(text).toContain("App Router");
   });
 
-  test("should default to 'latest' version when not specified", () => {
-    const result = handleQueryDocs(
+  test("should default to 'latest' version when not specified", async () => {
+    const result = await handleQueryDocs(
       { query: "hook", libraryId: "/facebook/react" },
       db
     );
 
-    const text = result.content[0].text;
+    const text = result.content[0]!.text;
     expect(text).toContain("Hook");
   });
 
-  test("should return appropriate message when no documentation found", () => {
-    const result = handleQueryDocs(
+  test("should return appropriate message when no documentation found", async () => {
+    const result = await handleQueryDocs(
       { query: "nonexistent query terms", libraryId: "/facebook/react/latest" },
       db
     );
 
-    const text = result.content[0].text;
+    const text = result.content[0]!.text;
     expect(text).toContain("No documentation found");
+  });
+
+  test("should use keyword search mode when searchMode is 'keyword'", async () => {
+    const result = await handleQueryDocs(
+      { query: "useState", libraryId: "/facebook/react/latest", searchMode: "keyword" },
+      db
+    );
+
+    expect(result.content[0]!.text).toContain("useState");
+  });
+
+  test("should use semantic search mode when searchMode is 'semantic'", async () => {
+    const mockFn = spyOn(embeddingGenerator, "generateEmbedding").mockResolvedValue([0.1, 0.2, 0.3]);
+
+    db.run(
+      `UPDATE snippets 
+       SET embedding = ?
+       WHERE library_id = '/facebook/react' AND library_version = 'latest'`,
+      [JSON.stringify([0.1, 0.2, 0.3])]
+    );
+
+    const result = await handleQueryDocs(
+      { query: "state management", libraryId: "/facebook/react/latest", searchMode: "semantic" },
+      db
+    );
+
+    expect(mockFn).toHaveBeenCalled();
+    expect(result).toHaveProperty("content");
+
+    mockFn.mockRestore();
+  });
+
+  test("should use hybrid search mode when searchMode is 'hybrid'", async () => {
+    const mockFn = spyOn(embeddingGenerator, "generateEmbedding").mockResolvedValue([0.1, 0.2, 0.3]);
+
+    db.run(
+      `UPDATE snippets 
+       SET embedding = ?
+       WHERE library_id = '/facebook/react' AND library_version = 'latest'`,
+      [JSON.stringify([0.1, 0.2, 0.3])]
+    );
+
+    const result = await handleQueryDocs(
+      { query: "useState hook", libraryId: "/facebook/react/latest", searchMode: "hybrid" },
+      db
+    );
+
+    expect(mockFn).toHaveBeenCalled();
+    expect(result).toHaveProperty("content");
+
+    mockFn.mockRestore();
+  });
+
+  test("should default to hybrid mode when searchMode is not specified", async () => {
+    const mockFn = spyOn(embeddingGenerator, "generateEmbedding").mockResolvedValue([0.1, 0.2, 0.3]);
+
+    db.run(
+      `UPDATE snippets 
+       SET embedding = ?
+       WHERE library_id = '/facebook/react' AND library_version = 'latest'`,
+      [JSON.stringify([0.1, 0.2, 0.3])]
+    );
+
+    const result = await handleQueryDocs(
+      { query: "useState hook", libraryId: "/facebook/react/latest" },
+      db
+    );
+
+    expect(mockFn).toHaveBeenCalled();
+    expect(result).toHaveProperty("content");
+
+    mockFn.mockRestore();
+  });
+
+  test("should fallback to keyword search when embedding generation fails", async () => {
+    const mockFn = spyOn(embeddingGenerator, "generateEmbedding").mockResolvedValue(null);
+
+    const result = await handleQueryDocs(
+      { query: "useState", libraryId: "/facebook/react/latest", searchMode: "semantic" },
+      db
+    );
+
+    expect(mockFn).toHaveBeenCalled();
+    expect(result.content[0]!.text).toContain("useState");
+
+    mockFn.mockRestore();
   });
 });

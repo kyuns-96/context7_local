@@ -2,8 +2,11 @@ import type { Database } from "bun:sqlite";
 import {
   searchLibraries,
   queryDocumentation,
+  queryDocumentationByVector,
+  queryDocumentationHybrid,
   type LibrarySearchResult,
 } from "../db/queries";
+import { generateEmbedding } from "../embeddings/generator";
 
 export interface ToolResponse {
   content: Array<{ type: "text"; text: string }>;
@@ -17,6 +20,7 @@ interface ResolveLibraryIdInput {
 interface QueryDocsInput {
   query: string;
   libraryId: string;
+  searchMode?: "keyword" | "semantic" | "hybrid";
 }
 
 function getSourceReputationLabel(
@@ -109,14 +113,15 @@ ${formattedResults.join("\n----------\n")}`;
   };
 }
 
-export function handleQueryDocs(input: QueryDocsInput, db: Database): ToolResponse {
+export async function handleQueryDocs(input: QueryDocsInput, db: Database): Promise<ToolResponse> {
+  const { searchMode = "hybrid" } = input;
   const parts = input.libraryId.split("/").filter((p) => p);
   let libraryId: string;
   let version: string;
 
   if (parts.length === 3) {
     libraryId = `/${parts[0]}/${parts[1]}`;
-    version = parts[2];
+    version = parts[2]!;
   } else if (parts.length === 2) {
     libraryId = `/${parts[0]}/${parts[1]}`;
     version = "latest";
@@ -131,7 +136,33 @@ export function handleQueryDocs(input: QueryDocsInput, db: Database): ToolRespon
     };
   }
 
-  const results = queryDocumentation(input.query, libraryId, version, db);
+  let results;
+
+  try {
+    if (searchMode === "semantic" || searchMode === "hybrid") {
+      console.log(`[MCP] Generating embedding for query: "${input.query.slice(0, 50)}..."`);
+      const queryEmbedding = await generateEmbedding(input.query);
+
+      if (queryEmbedding) {
+        console.log(`[MCP] Using ${searchMode} search mode`);
+        if (searchMode === "semantic") {
+          results = queryDocumentationByVector(queryEmbedding, libraryId, version, db);
+        } else {
+          results = queryDocumentationHybrid(input.query, queryEmbedding, libraryId, version, db);
+        }
+      } else {
+        console.warn("[MCP] Failed to generate embedding, falling back to keyword search");
+        results = queryDocumentation(input.query, libraryId, version, db);
+      }
+    } else {
+      console.log("[MCP] Using keyword search mode");
+      results = queryDocumentation(input.query, libraryId, version, db);
+    }
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error(`[MCP] Search error: ${errorMessage}, falling back to keyword search`);
+    results = queryDocumentation(input.query, libraryId, version, db);
+  }
 
   if (results.length === 0) {
     return {

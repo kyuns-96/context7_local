@@ -1,5 +1,39 @@
 import type { Database } from "bun:sqlite";
 
+export function cosineSimilarity(v1: string | null, v2: string | null): number | null {
+  if (!v1 || !v2) return null;
+  
+  try {
+    const vec1: number[] = JSON.parse(v1);
+    const vec2: number[] = JSON.parse(v2);
+    
+    if (!Array.isArray(vec1) || !Array.isArray(vec2) || vec1.length !== vec2.length) {
+      return null;
+    }
+    
+    let dotProduct = 0;
+    let mag1 = 0;
+    let mag2 = 0;
+    
+    for (let i = 0; i < vec1.length; i++) {
+      const val1 = vec1[i];
+      const val2 = vec2[i];
+      if (val1 === undefined || val2 === undefined) return null;
+      
+      dotProduct += val1 * val2;
+      mag1 += val1 * val1;
+      mag2 += val2 * val2;
+    }
+    
+    const magnitude = Math.sqrt(mag1) * Math.sqrt(mag2);
+    if (magnitude === 0) return null;
+    
+    return dotProduct / magnitude;
+  } catch {
+    return null;
+  }
+}
+
 export function createSchema(db: Database): void {
   db.exec(`
     CREATE TABLE IF NOT EXISTS libraries (
@@ -26,6 +60,7 @@ export function createSchema(db: Database): void {
         language TEXT DEFAULT '',
         token_count INTEGER DEFAULT 0,
         breadcrumb TEXT DEFAULT '',
+        embedding TEXT,
         FOREIGN KEY (library_id, library_version) REFERENCES libraries(id, version)
     );
 

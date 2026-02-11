@@ -10,6 +10,7 @@ import {
 } from "../scraper/github";
 import { parseMarkdown } from "../scraper/markdown";
 import { chunkDocument } from "../scraper/chunker";
+import { generateEmbeddings } from "../embeddings/generator";
 
 export interface IngestOptions {
   version?: string;
@@ -74,6 +75,14 @@ export async function ingestLibrary(
 
       let totalSnippets = 0;
 
+      // First pass: collect all chunks with metadata
+      interface ChunkWithMetadata {
+        chunk: any;
+        filePath: string;
+        sourceUrl: string;
+      }
+      const allChunks: ChunkWithMetadata[] = [];
+
       for (const filePath of markdownFiles) {
         const fullPath = join(scanDir, filePath);
         const content = readFileSync(fullPath, "utf-8");
@@ -88,24 +97,65 @@ export async function ingestLibrary(
             version !== "latest" ? version : "main"
           );
 
-          db.run(
-            `INSERT INTO snippets (library_id, library_version, title, content, source_path, source_url, language, token_count, breadcrumb)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [
-              libraryId,
-              version,
-              chunk.title,
-              chunk.content,
-              filePath,
-              sourceUrl,
-              chunk.language || "",
-              chunk.tokenCount,
-              chunk.breadcrumb,
-            ]
-          );
-
-          totalSnippets++;
+          allChunks.push({ chunk, filePath, sourceUrl });
         }
+      }
+
+      // Second pass: generate embeddings in batches
+      const BATCH_SIZE = 10;
+      const chunksWithEmbeddings: Array<ChunkWithMetadata & { embedding: string | null }> = [];
+
+      console.log(`Generating embeddings for ${allChunks.length} snippets...`);
+
+      for (let i = 0; i < allChunks.length; i += BATCH_SIZE) {
+        const batch = allChunks.slice(i, i + BATCH_SIZE);
+        const texts = batch.map(item => item.chunk.content);
+
+        try {
+          const embeddings = await generateEmbeddings(texts);
+          for (let j = 0; j < batch.length; j++) {
+            const item = batch[j];
+            if (item) {
+              chunksWithEmbeddings.push({
+                chunk: item.chunk,
+                filePath: item.filePath,
+                sourceUrl: item.sourceUrl,
+                embedding: embeddings[j] ? JSON.stringify(embeddings[j]) : null,
+              });
+            }
+          }
+        } catch (error: any) {
+          console.warn(`[Ingest] Failed to generate embeddings for batch: ${error.message}`);
+          // Add chunks without embeddings
+          for (const item of batch) {
+            chunksWithEmbeddings.push({ ...item, embedding: null });
+          }
+        }
+
+        const progress = Math.min(i + batch.length, allChunks.length);
+        console.log(`[Ingest] Generated embeddings for ${progress}/${allChunks.length} snippets`);
+      }
+
+      // Third pass: insert chunks with embeddings into database
+      for (const item of chunksWithEmbeddings) {
+        db.run(
+          `INSERT INTO snippets (library_id, library_version, title, content, source_path, source_url, language, token_count, breadcrumb, embedding)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            libraryId,
+            version,
+            item.chunk.title,
+            item.chunk.content,
+            item.filePath,
+            item.sourceUrl,
+            item.chunk.language || "",
+            item.chunk.tokenCount,
+            item.chunk.breadcrumb,
+            item.embedding,
+          ]
+        );
+
+        totalSnippets++;
       }
 
       db.run(
