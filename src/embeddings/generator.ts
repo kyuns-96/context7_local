@@ -5,9 +5,52 @@
  * Default: LocalProvider using Xenova/all-MiniLM-L6-v2 (384 dimensions)
  */
 
-import { LocalProvider, type EmbeddingProvider } from './providers';
+import { LocalProvider, OpenAIProvider, type EmbeddingProvider } from './providers';
 
 let provider: EmbeddingProvider = new LocalProvider();
+
+/**
+ * Configuration for embedding provider initialization
+ */
+export interface ProviderConfig {
+  provider?: 'local' | 'openai';
+  apiKey?: string;
+  model?: string;
+  apiUrl?: string;
+}
+
+/**
+ * Initialize embedding provider from config with environment variable fallback
+ * Precedence: CLI options > environment variables > defaults
+ * 
+ * @param config - Provider configuration from CLI
+ * @throws Error if openai provider selected but no API key provided
+ * 
+ * @example
+ * initializeProvider({
+ *   provider: 'openai',
+ *   apiKey: 'sk-...',
+ *   model: 'text-embedding-3-small'
+ * });
+ */
+export function initializeProvider(config: ProviderConfig = {}): void {
+  const providerType = config.provider || process.env.EMBEDDING_PROVIDER || 'local';
+  
+  if (providerType === 'openai') {
+    const apiKey = config.apiKey || process.env.EMBEDDING_API_KEY;
+    if (!apiKey) {
+      throw new Error('EMBEDDING_API_KEY required for OpenAI provider (set via --embedding-api-key or EMBEDDING_API_KEY env var)');
+    }
+    
+    setProvider(new OpenAIProvider({
+      apiKey,
+      model: config.model || process.env.EMBEDDING_MODEL,
+      apiUrl: config.apiUrl || process.env.EMBEDDING_API_URL,
+    }));
+  } else {
+    setProvider(new LocalProvider());
+  }
+}
 
 /**
  * Set the embedding provider

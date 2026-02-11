@@ -11,6 +11,7 @@ import {
 import { parseMarkdown } from "../scraper/markdown";
 import { chunkDocument } from "../scraper/chunker";
 import { generateEmbeddings } from "../embeddings/generator";
+import { initializeProvider } from "../embeddings/generator";
 
 export interface ParsedCommand {
   command: string;
@@ -22,6 +23,10 @@ export interface ParsedCommand {
   presetAll?: boolean;
   libraryId?: string;
   force?: boolean;
+  embeddingProvider?: 'local' | 'openai';
+  embeddingApiKey?: string;
+  embeddingModel?: string;
+  embeddingApiUrl?: string;
 }
 
 export function parseCliCommand(args: string[]): ParsedCommand {
@@ -40,6 +45,10 @@ export function parseCliCommand(args: string[]): ParsedCommand {
     .option("--docs-path <glob>", "Path to documentation directory")
     .option("--preset <name>", "Use a preset library configuration")
     .option("--preset-all", "Ingest all preset libraries")
+    .option("--embedding-provider <provider>", "Embedding provider: 'local' or 'openai'", "local")
+    .option("--embedding-api-key <key>", "API key for embedding provider")
+    .option("--embedding-model <model>", "Embedding model name")
+    .option("--embedding-api-url <url>", "Custom API endpoint URL")
     .action((repoUrl, options) => {
       if (!options.presetAll && !repoUrl) {
         throw new Error("repo-url is required unless --preset-all is used");
@@ -53,6 +62,10 @@ export function parseCliCommand(args: string[]): ParsedCommand {
         docsPath: options.docsPath,
         preset: options.preset,
         presetAll: options.presetAll,
+        embeddingProvider: options.embeddingProvider,
+        embeddingApiKey: options.embeddingApiKey,
+        embeddingModel: options.embeddingModel,
+        embeddingApiUrl: options.embeddingApiUrl,
       };
     });
 
@@ -102,6 +115,10 @@ export function parseCliCommand(args: string[]): ParsedCommand {
     .option("--library-id <id>", "Only vectorize snippets for specific library")
     .option("--version <version>", "Only vectorize snippets for specific version")
     .option("--force", "Regenerate embeddings even if they already exist")
+    .option("--embedding-provider <provider>", "Embedding provider: 'local' or 'openai'", "local")
+    .option("--embedding-api-key <key>", "API key for embedding provider")
+    .option("--embedding-model <model>", "Embedding model name")
+    .option("--embedding-api-url <url>", "Custom API endpoint URL")
     .action((options) => {
       parsedResult = {
         command: "vectorize",
@@ -109,6 +126,10 @@ export function parseCliCommand(args: string[]): ParsedCommand {
         libraryId: options.libraryId,
         version: options.version,
         force: options.force,
+        embeddingProvider: options.embeddingProvider,
+        embeddingApiKey: options.embeddingApiKey,
+        embeddingModel: options.embeddingModel,
+        embeddingApiUrl: options.embeddingApiUrl,
       };
     });
 
@@ -163,6 +184,14 @@ async function handleIngest(parsed: ParsedCommand): Promise<void> {
   if (!parsed.repoUrl) {
     throw new Error("repo-url is required for ingest command");
   }
+
+  // Initialize embedding provider with CLI options or env vars
+  initializeProvider({
+    provider: parsed.embeddingProvider as 'local' | 'openai' | undefined,
+    apiKey: parsed.embeddingApiKey,
+    model: parsed.embeddingModel,
+    apiUrl: parsed.embeddingApiUrl,
+  });
 
   const options: IngestOptions = {
     version: parsed.version,
@@ -311,6 +340,14 @@ async function handleVectorize(parsed: ParsedCommand): Promise<void> {
   if (!parsed.db) {
     throw new Error("--db is required for vectorize command");
   }
+
+  // Initialize embedding provider with CLI options or env vars
+  initializeProvider({
+    provider: parsed.embeddingProvider as 'local' | 'openai' | undefined,
+    apiKey: parsed.embeddingApiKey,
+    model: parsed.embeddingModel,
+    apiUrl: parsed.embeddingApiUrl,
+  });
 
   const db = openDatabase(parsed.db);
 
