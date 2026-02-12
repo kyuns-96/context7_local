@@ -14,6 +14,63 @@ Efficient, local Model Context Protocol (MCP) server for searching library docum
 
 Compared to the cloud-based Context7, this local version gives you full control over the registry and ensures availability in restricted environments.
 
+### 🚀 Quick Download (Pre-built Database)
+
+**Don't want to ingest libraries yourself?** Download our pre-built databases with comprehensive documentation coverage:
+
+### Option 1: Domain-Specific Databases (v1.0.7 - Recommended for 2026 Updates)
+
+Download only the domains you need with the **latest 2026 library versions** (React 19, Node.js 24/25, TypeScript 5.9, Next.js 15):
+
+```bash
+# Frontend development (React, Vue, Angular, Next.js, TypeScript) - 286MB
+curl -L https://github.com/kyuns-96/context7_local/releases/download/v1.0.7/frontend.db.tar.gz | tar -xz
+mv frontend.db docs.db
+bun run src/server/index.ts --transport http --port 3000 --db docs.db
+
+# Backend development (Node.js, Express, GraphQL, NestJS) - 414MB
+curl -L https://github.com/kyuns-96/context7_local/releases/download/v1.0.7/backend.db.tar.gz | tar -xz
+
+# Or download all 8 databases (1.6GB combined)
+curl -L https://github.com/kyuns-96/context7_local/releases/download/v1.0.7/split-databases-v1.0.7.tar.gz | tar -xz
+```
+
+**8 Split Databases in v1.0.7**:
+- **frontend.db** (286MB): React 19, Vue 3.5, Angular 19, Next.js 15, TypeScript 5.9, Svelte, UI frameworks
+- **backend.db** (414MB): Node.js 24/25, Express, NestJS, GraphQL, Laravel, Rails, Django
+- **mobile.db** (103MB): React Native, Flutter, Expo, Ionic, Swift, Kotlin
+- **devops.db** (106MB): Docker, Kubernetes, Terraform, AWS, Azure, Google Cloud
+- **ai-ml.db** (48MB): LangChain, OpenAI, Anthropic, TensorFlow, PyTorch
+- **data.db** (364MB): MongoDB, PostgreSQL, Redis, Elasticsearch, Prisma, Vector DBs
+- **system.db** (219MB): PowerShell, Windows Server, Ubuntu, Arch Linux, WSL
+- **security.db** (95MB): Auth0, OAuth, Keycloak, NextAuth
+
+**Latest 2026 Versions**: React 19.2.4, Node.js v24.13.1 LTS, Node.js v25.6.1, TypeScript 5.9.3, Next.js 15.5.12, Vue 3.5.28, Angular 19.2.17
+
+See [Release v1.0.7](https://github.com/kyuns-96/context7_local/releases/tag/v1.0.7) for full details.
+
+### Option 2: Monolithic Database (v1.0.6 - Maximum Coverage)
+
+Download the comprehensive database with all 198 libraries (no 2026 updates):
+
+```bash
+# Download v1.0.6 - Maximum Capacity Edition (1.98GB compressed, 4.8GB uncompressed)
+curl -L https://github.com/kyuns-96/context7_local/releases/download/v1.0.6/docs-v1.0.6.db.tar.gz | tar -xz
+
+# Rename for convenience
+mv docs-v1.0.6.db docs.db
+
+# Run the server immediately
+bun run src/server/index.ts --transport http --port 3000 --db docs.db
+```
+
+**Available Releases**:
+- **v1.0.7** (Latest - 2026 Updates, Split Databases): 125 libraries (split), 498,589 snippets, 1.6GB combined
+- **v1.0.6** (Maximum Capacity, Monolithic): 198 libraries, 604,053 snippets, 1.98GB compressed
+- v1.0.5 (Version-Specific + Shell + OS): 158 libraries, 420,023 snippets, 1.35GB compressed
+- v1.0.4 (AI Development): 160 libraries, 300,670 snippets, 969MB compressed
+- v1.0.3 (Cloud+DevOps): 134 libraries, 268,831 snippets, 868MB compressed
+
 ## 2. Quick Start
 
 Get up and running in 5 steps:
