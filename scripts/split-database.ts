@@ -64,7 +64,8 @@ const domains = {
     'sqlalchemy', 'alembic', 'dbt', 'airbyte', 'dagster',
     'airflow', 'prefect', 'spark', 'flink', 'kafka', 'pulsar',
     'rabbitmq', 'nats', 'zeromq', 'clickhouse', 'timescale',
-    'influx', 'questdb', 'dgraph', 'neo4j', 'arangodb', 'fauna'
+    'influx', 'questdb', 'dgraph', 'neo4j', 'arangodb', 'fauna',
+    'streamlit'
   ],
   system: [
     'powershell', 'bash', 'zsh', 'fish', 'windows', 'ubuntu',

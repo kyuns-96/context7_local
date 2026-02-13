@@ -28,9 +28,9 @@ export async function cloneRepo(
   }
 }
 
-export async function listMarkdownFiles(
+export async function listDocFiles(
   dir: string,
-  globPattern: string = "**/*.md"
+  globPattern: string = "**/*.{md,txt}"
 ): Promise<string[]> {
   const glob = new Glob(globPattern);
   const files: string[] = [];
@@ -40,6 +40,13 @@ export async function listMarkdownFiles(
   }
 
   return files;
+}
+
+export async function listMarkdownFiles(
+  dir: string,
+  globPattern: string = "**/*.md"
+): Promise<string[]> {
+  return listDocFiles(dir, globPattern);
 }
 
 export function buildLibraryId(repoUrl: string): string {

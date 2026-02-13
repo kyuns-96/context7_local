@@ -1,14 +1,16 @@
-import { join } from "path";
+import { join, extname } from "path";
 import { readFileSync, rmSync } from "fs";
 import type { Database } from "bun:sqlite";
 import { openDatabase } from "../db/connection";
 import {
   cloneRepo,
   listMarkdownFiles,
+  listDocFiles,
   buildLibraryId,
   buildSourceUrl,
 } from "../scraper/github";
 import { parseMarkdown } from "../scraper/markdown";
+import { parseRst } from "../scraper/rst";
 import { chunkDocument } from "../scraper/chunker";
 import { generateEmbeddings } from "../embeddings/generator";
 
@@ -48,12 +50,12 @@ export async function ingestLibrary(
 
   try {
     const scanDir = docsPath ? join(repoDir, docsPath) : repoDir;
-    const globPattern = docsPath ? "**/*.md" : "**/*.md";
+    const globPattern = docsPath ? "**/*.{md,txt}" : "**/*.{md,txt}";
 
-    console.log("Scanning for markdown files...");
-    const markdownFiles = await listMarkdownFiles(scanDir, globPattern);
+    console.log("Scanning for documentation files...");
+    const docFiles = await listDocFiles(scanDir, globPattern);
 
-    console.log(`Parsing ${markdownFiles.length} files...`);
+    console.log(`Parsing ${docFiles.length} files...`);
 
     const db = openDatabase(dbPath);
 
@@ -83,11 +85,12 @@ export async function ingestLibrary(
       }
       const allChunks: ChunkWithMetadata[] = [];
 
-      for (const filePath of markdownFiles) {
+      for (const filePath of docFiles) {
         const fullPath = join(scanDir, filePath);
         const content = readFileSync(fullPath, "utf-8");
 
-        const sections = parseMarkdown(content);
+        const ext = extname(filePath).toLowerCase();
+        const sections = ext === ".txt" ? parseRst(content) : parseMarkdown(content);
         const chunks = chunkDocument(sections, { maxChunkSize: 1500 });
 
         for (const chunk of chunks) {
