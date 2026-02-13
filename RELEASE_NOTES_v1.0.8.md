@@ -65,12 +65,18 @@ Django and many other Python projects use reStructuredText for their documentati
 
 ### Download Monolithic Database (v1.0.8)
 
+**Note**: Due to GitHub's 2GB file size limit, the database is split into two parts.
+
 ```bash
-# Download the v1.0.8 monolithic database (5.4 GB uncompressed)
-curl -L https://github.com/kyuns-96/context7_local/releases/download/v1.0.8/docs-v1.0.8.db.tar.gz | tar -xz
+# Download both parts of the v1.0.8 database
+curl -L -O https://github.com/kyuns-96/context7_local/releases/download/v1.0.8/docs-v1.0.8.db.tar.gz.partaa
+curl -L -O https://github.com/kyuns-96/context7_local/releases/download/v1.0.8/docs-v1.0.8.db.tar.gz.partab
+
+# Combine the parts and extract
+cat docs-v1.0.8.db.tar.gz.part* | tar -xz
 
 # Rename and run
-mv docs-v1.0.8.db docs.db
+mv docs-v1.0.3.db docs.db
 bun run src/server/index.ts --transport http --port 3000 --db docs.db
 ```
 
@@ -99,7 +105,10 @@ If you are currently using the split databases from v1.0.7, you can continue to 
 
 | File | Size | Description |
 |------|------|-------------|
-| `docs-v1.0.8.db.tar.gz` | ~2.2 GB | Monolithic database with all 210 libraries |
+| `docs-v1.0.8.db.tar.gz.partaa` | 2.0 GB | Database part 1 of 2 |
+| `docs-v1.0.8.db.tar.gz.partab` | 247 MB | Database part 2 of 2 |
+
+**Total compressed size**: 2.2 GB (5.4 GB uncompressed)
 
 ---
 
