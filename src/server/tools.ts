@@ -129,7 +129,11 @@ export async function handleQueryDocs(input: QueryDocsInput, db: Database): Prom
     version = parts[2]!;
   } else if (parts.length === 2) {
     libraryId = `/${parts[0]}/${parts[1]}`;
-    version = "latest";
+    // Find the actual version stored in the database
+    const versionRow = db
+      .query("SELECT version FROM libraries WHERE id = ?1 ORDER BY rowid DESC LIMIT 1")
+      .get(libraryId) as { version: string } | null;
+    version = versionRow?.version ?? "latest";
   } else {
     return {
       content: [
