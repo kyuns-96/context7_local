@@ -36,16 +36,17 @@ bun run src/server/index.ts --transport http --port 3000 --db docs.db
 Skip ingestion by downloading pre-built databases from [Releases](https://github.com/kyuns-96/context7_local/releases):
 
 ```bash
+# All 30 presets (v1.0.9) — 150K snippets, 573MB download
+curl -L https://github.com/kyuns-96/context7_local/releases/download/v1.0.9/docs-v1.0.9.db.tar.gz | tar -xz
+mv docs-v1.0.9.db docs.db
+
 # Domain-specific (v1.0.7) — download only what you need
 curl -L https://github.com/kyuns-96/context7_local/releases/download/v1.0.7/frontend.db.tar.gz | tar -xz
 mv frontend.db docs.db
-
-# Monolithic (v1.0.6) — all 198 libraries, 604K snippets
-curl -L https://github.com/kyuns-96/context7_local/releases/download/v1.0.6/docs-v1.0.6.db.tar.gz | tar -xz
-mv docs-v1.0.6.db docs.db
 ```
 
-**Split databases (v1.0.7)**: frontend (286MB), backend (414MB), mobile (103MB), devops (106MB), ai-ml (48MB), data (364MB), system (219MB), security (95MB)
+**v1.0.9**: All 30 preset libraries with embeddings (1.3GB uncompressed)
+**v1.0.7 split**: frontend (286MB), backend (414MB), mobile (103MB), devops (106MB), ai-ml (48MB), data (364MB), system (219MB), security (95MB)
 
 ---
 
