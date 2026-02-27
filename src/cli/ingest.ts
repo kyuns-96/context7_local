@@ -1,10 +1,8 @@
 import { join, extname } from "path";
 import { readFileSync, rmSync } from "fs";
-import type { Database } from "bun:sqlite";
 import { openDatabase } from "../db/connection";
 import {
   cloneRepo,
-  listMarkdownFiles,
   listDocFiles,
   buildLibraryId,
   buildSourceUrl,
@@ -13,6 +11,8 @@ import { parseMarkdown } from "../scraper/markdown";
 import { parseRst } from "../scraper/rst";
 import { chunkDocument } from "../scraper/chunker";
 import { generateEmbeddings } from "../embeddings/generator";
+import { resolveDocsScan, resolveRepoRelativePath } from "./docs";
+import { computeVectorBands, type VectorBands } from "../db/vector-index";
 
 export interface IngestOptions {
   version?: string;
@@ -21,6 +21,7 @@ export interface IngestOptions {
   title?: string;
   description?: string;
 }
+
 
 export async function ingestLibrary(
   repoUrl: string,
@@ -49,8 +50,7 @@ export async function ingestLibrary(
   }
 
   try {
-    const scanDir = docsPath ? join(repoDir, docsPath) : repoDir;
-    const globPattern = docsPath ? "**/*.{md,txt}" : "**/*.{md,txt}";
+    const { scanDir, globPattern, repoRelativePrefix } = resolveDocsScan(repoDir, docsPath);
 
     console.log("Scanning for documentation files...");
     const docFiles = await listDocFiles(scanDir, globPattern);
@@ -86,27 +86,31 @@ export async function ingestLibrary(
       const allChunks: ChunkWithMetadata[] = [];
 
       for (const filePath of docFiles) {
-        const fullPath = join(scanDir, filePath);
+        const repoRelativePath = resolveRepoRelativePath(repoRelativePrefix, filePath);
+        const fullPath = join(repoDir, repoRelativePath);
         const content = readFileSync(fullPath, "utf-8");
 
-        const ext = extname(filePath).toLowerCase();
-        const sections = ext === ".txt" ? parseRst(content) : parseMarkdown(content);
+        const ext = extname(repoRelativePath).toLowerCase();
+        const sections =
+          ext === ".rst" || ext === ".txt" ? parseRst(content) : parseMarkdown(content);
         const chunks = chunkDocument(sections, { maxChunkSize: 1500 });
 
         for (const chunk of chunks) {
           const sourceUrl = buildSourceUrl(
             repoUrl,
-            docsPath ? join(docsPath, filePath) : filePath,
+            repoRelativePath,
             version !== "latest" ? version : "main"
           );
 
-          allChunks.push({ chunk, filePath, sourceUrl });
+          allChunks.push({ chunk, filePath: repoRelativePath, sourceUrl });
         }
       }
 
       // Second pass: generate embeddings in batches
       const BATCH_SIZE = 10;
-      const chunksWithEmbeddings: Array<ChunkWithMetadata & { embedding: string | null }> = [];
+      const chunksWithEmbeddings: Array<
+        ChunkWithMetadata & { embedding: string | null; bands: VectorBands | null }
+      > = [];
 
       console.log(`Generating embeddings for ${allChunks.length} snippets...`);
 
@@ -119,11 +123,13 @@ export async function ingestLibrary(
           for (let j = 0; j < batch.length; j++) {
             const item = batch[j];
             if (item) {
+              const embeddingVector = embeddings[j] ?? null;
               chunksWithEmbeddings.push({
                 chunk: item.chunk,
                 filePath: item.filePath,
                 sourceUrl: item.sourceUrl,
-                embedding: embeddings[j] ? JSON.stringify(embeddings[j]) : null,
+                embedding: embeddingVector ? JSON.stringify(embeddingVector) : null,
+                bands: embeddingVector ? computeVectorBands(embeddingVector) : null,
               });
             }
           }
@@ -131,7 +137,7 @@ export async function ingestLibrary(
           console.warn(`[Ingest] Failed to generate embeddings for batch: ${error.message}`);
           // Add chunks without embeddings
           for (const item of batch) {
-            chunksWithEmbeddings.push({ ...item, embedding: null });
+            chunksWithEmbeddings.push({ ...item, embedding: null, bands: null });
           }
         }
 
@@ -141,7 +147,7 @@ export async function ingestLibrary(
 
       // Third pass: insert chunks with embeddings into database
       for (const item of chunksWithEmbeddings) {
-        db.run(
+        const insertResult = db.run(
           `INSERT INTO snippets (library_id, library_version, title, content, source_path, source_url, language, token_count, breadcrumb, embedding)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
@@ -157,6 +163,26 @@ export async function ingestLibrary(
             item.embedding,
           ]
         );
+
+        const rawRowid = (insertResult as { lastInsertRowid?: number | bigint }).lastInsertRowid;
+        const snippetId = rawRowid === undefined ? null : Number(rawRowid);
+
+        if (snippetId !== null && item.embedding && item.bands) {
+          db.run(
+            `INSERT OR REPLACE INTO snippet_vector_index (
+               snippet_id, library_id, library_version, band1, band2, band3, band4
+             ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+            [
+              snippetId,
+              libraryId,
+              version,
+              item.bands.band1,
+              item.bands.band2,
+              item.bands.band3,
+              item.bands.band4,
+            ]
+          );
+        }
 
         totalSnippets++;
       }

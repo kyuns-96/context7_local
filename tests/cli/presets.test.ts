@@ -10,10 +10,10 @@ describe("presets", () => {
       expect(typeof presets).toBe("object");
     });
 
-    it("returns exactly 20 presets", () => {
+    it("returns exactly 30 presets", () => {
       const presets = loadPresets();
       const count = Object.keys(presets).length;
-      expect(count).toBe(20);
+      expect(count).toBe(30);
     });
 
     it("contains all required web framework presets", () => {
@@ -28,6 +28,22 @@ describe("presets", () => {
       const presets = loadPresets();
       const pythonLibraries = ["django", "flask", "fastapi", "sqlalchemy", "pydantic", "celery", "pytest", "numpy", "pandas", "requests"];
       pythonLibraries.forEach((lib) => {
+        expect(presets[lib]).toBeDefined();
+      });
+    });
+
+    it("contains all new language presets", () => {
+      const presets = loadPresets();
+      const newLanguages = ["rust-book", "dotnet", "rails", "laravel", "swift", "kotlin"];
+      newLanguages.forEach((lib) => {
+        expect(presets[lib]).toBeDefined();
+      });
+    });
+
+    it("contains all new DevOps presets", () => {
+      const presets = loadPresets();
+      const devOps = ["docker", "kubernetes", "ansible", "helm"];
+      devOps.forEach((lib) => {
         expect(presets[lib]).toBeDefined();
       });
     });
@@ -47,6 +63,20 @@ describe("presets", () => {
 
         expect(config.description).toBeDefined();
         expect(typeof config.description).toBe("string");
+      });
+    });
+
+    it("versions field is a non-empty string array when present", () => {
+      const presets = loadPresets();
+      Object.entries(presets).forEach(([name, config]) => {
+        if (config.versions !== undefined) {
+          expect(Array.isArray(config.versions)).toBe(true);
+          expect(config.versions.length).toBeGreaterThanOrEqual(1);
+          config.versions.forEach((v) => {
+            expect(typeof v).toBe("string");
+            expect(v.length).toBeGreaterThan(0);
+          });
+        }
       });
     });
 
@@ -98,13 +128,25 @@ describe("presets", () => {
       expect(preset?.title).toBeDefined();
       expect(preset?.description).toBeDefined();
     });
+
+    it("returns versions for presets that have them", () => {
+      const react = getPreset("react");
+      expect(react?.versions).toBeDefined();
+      expect(Array.isArray(react?.versions)).toBe(true);
+      expect(react?.versions?.[0]).toBeDefined();
+    });
+
+    it("returns undefined versions for presets without them", () => {
+      const express = getPreset("express");
+      expect(express?.versions).toBeUndefined();
+    });
   });
 
   describe("listPresets", () => {
     it("returns array of preset list items", () => {
       const items = listPresets();
       expect(Array.isArray(items)).toBe(true);
-      expect(items.length).toBe(20);
+      expect(items.length).toBe(30);
     });
 
     it("each list item has required fields", () => {
@@ -126,13 +168,17 @@ describe("presets", () => {
       expect(names).toEqual(sortedNames);
     });
 
-    it("contains all 20 presets with correct names", () => {
+    it("contains all 30 presets with correct names", () => {
       const items = listPresets();
       const names = items.map((item) => item.name);
       expect(names).toContain("react");
       expect(names).toContain("django");
       expect(names).toContain("fastapi");
       expect(names).toContain("tailwindcss");
+      expect(names).toContain("rust-book");
+      expect(names).toContain("docker");
+      expect(names).toContain("kubernetes");
+      expect(names).toContain("rails");
     });
 
     it("maps preset names to correct titles and descriptions", () => {
@@ -167,7 +213,7 @@ describe("presets", () => {
       Object.values(presets).forEach((config) => {
         expect(config.title.length).toBeGreaterThan(0);
         const firstChar = config.title.charAt(0);
-        expect(firstChar).toMatch(/[A-Z0-9]/);
+        expect(firstChar).toMatch(/[A-Z0-9.]/);
       });
     });
 
@@ -176,6 +222,17 @@ describe("presets", () => {
       Object.values(presets).forEach((config) => {
         expect(config.description.length).toBeGreaterThan(20);
       });
+    });
+
+    it("vue preset points to correct docs repo", () => {
+      const vue = getPreset("vue");
+      expect(vue?.repo).toBe("https://github.com/vuejs/docs");
+      expect(vue?.docsPath).toBe("src/guide");
+    });
+
+    it("angular preset uses updated docsPath", () => {
+      const angular = getPreset("angular");
+      expect(angular?.docsPath).toBe("adev/src/content");
     });
   });
 });

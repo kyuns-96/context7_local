@@ -1,6 +1,6 @@
 import { describe, test, expect, beforeAll, afterAll } from "bun:test";
 import { spawn } from "child_process";
-import { mkdtempSync, rmSync } from "fs";
+import { mkdtempSync, rmSync, mkdirSync, writeFileSync } from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
 import { ingestLibrary } from "../../src/cli/ingest";
@@ -22,10 +22,33 @@ describe("Full Roundtrip E2E Test", () => {
     console.log(`E2E Test: Using temp directory ${tempDir}`);
     console.log(`E2E Test: Using port ${serverPort}`);
 
-    // Step 1: Ingest expressjs/express repo
-    console.log("E2E Test: Starting ingestion of expressjs/express...");
+    const mockRepoDir = join(tempDir, "mock-express");
+    const docsDir = join(mockRepoDir, "docs");
+
+    mkdirSync(docsDir, { recursive: true });
+
+    writeFileSync(
+      join(docsDir, "getting-started.md"),
+      `# Express Getting Started\n\nExpress is a Node.js web framework for building an application.\n\n## App\n\nCreate an express app and handle requests and responses.\n\n\`\`\`javascript\nimport express from 'express';\nconst app = express();\napp.get('/ping', (req, res) => res.send('pong'));\n\`\`\`\n`
+    );
+
+    writeFileSync(
+      join(docsDir, "routing.md"),
+      `# Routing and Middleware\n\nRouting defines how the app responds to a client request.\n\nMiddleware functions have access to the request and response objects.\n\nKeywords: routing, route, middleware, request, response.\n`
+    );
+
+    writeFileSync(
+      join(docsDir, "api.rst"),
+      `API Reference\n=============\n\n.. code-block:: javascript\n\n   // Express API example\n   app.use((req, res, next) => next());\n`
+    );
+
+    console.log("E2E Test: Starting ingestion of mock express repo...");
     await ingestLibrary("https://github.com/expressjs/express", dbPath, {
       version: "latest",
+      localPath: mockRepoDir,
+      docsPath: "docs",
+      title: "Express",
+      description: "Fast, unopinionated, minimalist web framework for Node.js",
     });
     console.log("E2E Test: Ingestion complete");
   }, 60000); // 60 second timeout for cloning + ingestion
@@ -114,7 +137,9 @@ describe("Full Roundtrip E2E Test", () => {
       }),
     });
 
-    const initData = await initResponse.json();
+    const initData = (await initResponse.json()) as {
+      result: { serverInfo: { name: string } };
+    };
     expect(initResponse.ok).toBe(true);
     expect(initData.result).toBeDefined();
     expect(initData.result.serverInfo.name).toBe("context7-local");
@@ -142,14 +167,16 @@ describe("Full Roundtrip E2E Test", () => {
       }),
     });
 
-    const resolveData = await resolveResponse.json();
+    const resolveData = (await resolveResponse.json()) as {
+      result: { content: Array<{ type: string; text: string }> };
+    };
     expect(resolveResponse.ok).toBe(true);
     expect(resolveData.result).toBeDefined();
     expect(resolveData.result.content).toBeDefined();
     expect(resolveData.result.content.length).toBeGreaterThan(0);
-    expect(resolveData.result.content[0].type).toBe("text");
+    expect(resolveData.result.content[0]!.type).toBe("text");
 
-    const resolveText = resolveData.result.content[0].text;
+    const resolveText = resolveData.result.content[0]!.text;
     expect(resolveText).toContain("/expressjs/express");
     console.log("E2E Test: resolve-library-id successful");
     console.log("E2E Test: Found library:", resolveText.substring(0, 200));
@@ -176,14 +203,16 @@ describe("Full Roundtrip E2E Test", () => {
       }),
     });
 
-    const queryData = await queryResponse.json();
+    const queryData = (await queryResponse.json()) as {
+      result: { content: Array<{ type: string; text: string }> };
+    };
     expect(queryResponse.ok).toBe(true);
     expect(queryData.result).toBeDefined();
     expect(queryData.result.content).toBeDefined();
     expect(queryData.result.content.length).toBeGreaterThan(0);
-    expect(queryData.result.content[0].type).toBe("text");
+    expect(queryData.result.content[0]!.type).toBe("text");
 
-    const queryText = queryData.result.content[0].text;
+    const queryText = queryData.result.content[0]!.text;
     expect(queryText.length).toBeGreaterThan(0);
     // Verify that results either contain relevant documentation OR indicate no results found
     // Express repo might not have much markdown content or the query might not match FTS5 index
@@ -267,10 +296,12 @@ describe("Full Roundtrip E2E Test", () => {
       }),
     });
 
-    const queryData = await queryResponse.json();
+    const queryData = (await queryResponse.json()) as {
+      result: { content: Array<{ type: string; text: string }> };
+    };
     expect(queryResponse.ok).toBe(true);
     expect(queryData.result).toBeDefined();
-    expect(queryData.result.content[0].text).toContain(
+    expect(queryData.result.content[0]!.text).toContain(
       "No documentation found"
     );
     console.log("E2E Test: Non-existent library error case handled correctly");
@@ -298,10 +329,12 @@ describe("Full Roundtrip E2E Test", () => {
       }),
     });
 
-    const resolveData = await resolveResponse.json();
+    const resolveData = (await resolveResponse.json()) as {
+      result: { content: Array<{ type: string; text: string }> };
+    };
     expect(resolveResponse.ok).toBe(true);
     expect(resolveData.result).toBeDefined();
-    expect(resolveData.result.content[0].text).toContain(
+    expect(resolveData.result.content[0]!.text).toContain(
       "No libraries found matching the provided name."
     );
     console.log("E2E Test: Non-matching library name error case handled correctly");

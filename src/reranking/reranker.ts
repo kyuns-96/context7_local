@@ -160,7 +160,10 @@ export class LocalReranker implements Reranker {
         if (Array.isArray(output) && output.length > 0) {
           const firstResult = output[0];
           if (firstResult && typeof firstResult === 'object' && 'score' in firstResult) {
-            score = (firstResult as any).score;
+            const scoreValue = (firstResult as { score?: unknown }).score;
+            if (typeof scoreValue === 'number') {
+              score = scoreValue;
+            }
           }
         }
 
@@ -275,8 +278,14 @@ export class CohereReranker implements Reranker {
 
       // Handle other client errors (4xx)
       if (!response.ok) {
-        const errorBody = await response.json().catch(() => ({})) as any;
-        const errorMessage = errorBody?.message || `Cohere API error (${response.status})`;
+        const errorBody: unknown = await response.json().catch(() => ({}));
+        let errorMessage = `Cohere API error (${response.status})`;
+        if (typeof errorBody === 'object' && errorBody !== null && 'message' in errorBody) {
+          const message = (errorBody as { message?: unknown }).message;
+          if (typeof message === 'string' && message.trim().length > 0) {
+            errorMessage = message;
+          }
+        }
         console.error(`[Cohere] Client error (${response.status}):`, errorBody);
         throw new Error(errorMessage);
       }
@@ -435,8 +444,14 @@ export class JinaReranker implements Reranker {
 
       // Handle other client errors (4xx)
       if (!response.ok) {
-        const errorBody = await response.json().catch(() => ({})) as any;
-        const errorMessage = errorBody?.message || `Jina API error (${response.status})`;
+        const errorBody: unknown = await response.json().catch(() => ({}));
+        let errorMessage = `Jina API error (${response.status})`;
+        if (typeof errorBody === 'object' && errorBody !== null && 'message' in errorBody) {
+          const message = (errorBody as { message?: unknown }).message;
+          if (typeof message === 'string' && message.trim().length > 0) {
+            errorMessage = message;
+          }
+        }
         console.error(`[Jina] Client error (${response.status}):`, errorBody);
         throw new Error(errorMessage);
       }

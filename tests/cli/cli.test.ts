@@ -1,9 +1,10 @@
-import { describe, test, expect, beforeEach, afterEach } from "bun:test";
+import { describe, test, expect, beforeEach, afterEach, spyOn } from "bun:test";
 import { join } from "path";
 import { mkdirSync, rmSync, existsSync } from "fs";
 import { openDatabase } from "../../src/db/connection";
 import { createSchema } from "../../src/db/schema";
 import { executeCommand } from "../../src/cli/index";
+import * as ingestModule from "../../src/cli/ingest";
 
 describe("CLI - Command Execution", () => {
   let testDir: string;
@@ -26,29 +27,44 @@ describe("CLI - Command Execution", () => {
   });
 
   describe("ingest command", () => {
-    test("throws error when preset-all is used", async () => {
-      const parsed = {
-        command: "ingest",
-        db: dbPath,
-        presetAll: true,
-      };
+    test("ingests all presets when --preset-all is used", async () => {
+      const ingestSpy = spyOn(ingestModule, "ingestLibrary").mockResolvedValue();
 
-      await expect(executeCommand(parsed)).rejects.toThrow(
-        "--preset-all is not yet implemented"
-      );
+      try {
+        const parsed = {
+          command: "ingest",
+          db: dbPath,
+          presetAll: true,
+        };
+
+        await executeCommand(parsed);
+
+        expect(ingestSpy).toHaveBeenCalled();
+        expect(ingestSpy.mock.calls.length).toBe(30);
+      } finally {
+        ingestSpy.mockRestore();
+      }
     });
 
-    test("throws error when preset is used", async () => {
-      const parsed = {
-        command: "ingest",
-        db: dbPath,
-        preset: "react",
-        repoUrl: "https://github.com/org/repo",
-      };
+    test("ingests a preset when --preset is used", async () => {
+      const ingestSpy = spyOn(ingestModule, "ingestLibrary").mockResolvedValue();
 
-      await expect(executeCommand(parsed)).rejects.toThrow(
-        "--preset is not yet implemented"
-      );
+      try {
+        const parsed = {
+          command: "ingest",
+          db: dbPath,
+          preset: "react",
+        };
+
+        await executeCommand(parsed);
+
+        expect(ingestSpy).toHaveBeenCalledTimes(1);
+        const call = ingestSpy.mock.calls[0];
+        expect(call?.[0]).toBe("https://github.com/facebook/react");
+        expect(call?.[1]).toBe(dbPath);
+      } finally {
+        ingestSpy.mockRestore();
+      }
     });
 
     test("throws error when repo-url is missing", async () => {
@@ -174,6 +190,137 @@ describe("CLI - Command Execution", () => {
       expect(result.count).toBe(0);
       db.close();
     }, 30000);
+  });
+
+  describe("preset version defaulting", () => {
+    test("--preset uses versions[0] when --version not passed", async () => {
+      const ingestSpy = spyOn(ingestModule, "ingestLibrary").mockResolvedValue();
+
+      try {
+        await executeCommand({
+          command: "ingest",
+          db: dbPath,
+          preset: "react",
+        });
+
+        expect(ingestSpy).toHaveBeenCalledTimes(1);
+        const options = ingestSpy.mock.calls[0]?.[2];
+        expect(options?.version).toBe("v19.2.4");
+      } finally {
+        ingestSpy.mockRestore();
+      }
+    });
+
+    test("--preset --version overrides preset version", async () => {
+      const ingestSpy = spyOn(ingestModule, "ingestLibrary").mockResolvedValue();
+
+      try {
+        await executeCommand({
+          command: "ingest",
+          db: dbPath,
+          preset: "react",
+          version: "v18.0.0",
+        });
+
+        expect(ingestSpy).toHaveBeenCalledTimes(1);
+        const options = ingestSpy.mock.calls[0]?.[2];
+        expect(options?.version).toBe("v18.0.0");
+      } finally {
+        ingestSpy.mockRestore();
+      }
+    });
+
+    test("--preset without versions field defaults to undefined", async () => {
+      const ingestSpy = spyOn(ingestModule, "ingestLibrary").mockResolvedValue();
+
+      try {
+        await executeCommand({
+          command: "ingest",
+          db: dbPath,
+          preset: "express",
+        });
+
+        expect(ingestSpy).toHaveBeenCalledTimes(1);
+        const options = ingestSpy.mock.calls[0]?.[2];
+        expect(options?.version).toBeUndefined();
+      } finally {
+        ingestSpy.mockRestore();
+      }
+    });
+
+    test("--preset with branch ref works correctly", async () => {
+      const ingestSpy = spyOn(ingestModule, "ingestLibrary").mockResolvedValue();
+
+      try {
+        await executeCommand({
+          command: "ingest",
+          db: dbPath,
+          preset: "laravel",
+        });
+
+        expect(ingestSpy).toHaveBeenCalledTimes(1);
+        const options = ingestSpy.mock.calls[0]?.[2];
+        expect(options?.version).toBe("12.x");
+      } finally {
+        ingestSpy.mockRestore();
+      }
+    });
+
+    test("--preset-all uses per-preset versions[0]", async () => {
+      const ingestSpy = spyOn(ingestModule, "ingestLibrary").mockResolvedValue();
+
+      try {
+        await executeCommand({
+          command: "ingest",
+          db: dbPath,
+          presetAll: true,
+        });
+
+        expect(ingestSpy).toHaveBeenCalled();
+        expect(ingestSpy.mock.calls.length).toBe(30);
+
+        // Find the react call (sorted alphabetically, so find by repo URL)
+        const reactCall = ingestSpy.mock.calls.find(
+          (call) => call[0] === "https://github.com/facebook/react"
+        );
+        expect(reactCall?.[2]?.version).toBe("v19.2.4");
+
+        // Express has no versions — should be undefined
+        const expressCall = ingestSpy.mock.calls.find(
+          (call) => call[0] === "https://github.com/expressjs/expressjs.com"
+        );
+        expect(expressCall?.[2]?.version).toBeUndefined();
+      } finally {
+        ingestSpy.mockRestore();
+      }
+    });
+
+    test("--preset-all with --version warns and ignores the flag", async () => {
+      const ingestSpy = spyOn(ingestModule, "ingestLibrary").mockResolvedValue();
+      const warnSpy = spyOn(console, "warn").mockImplementation(() => {});
+
+      try {
+        await executeCommand({
+          command: "ingest",
+          db: dbPath,
+          presetAll: true,
+          version: "v1.0.0",
+        });
+
+        expect(warnSpy).toHaveBeenCalledWith(
+          "Warning: --version is ignored with --preset-all (each preset uses its own version)"
+        );
+
+        // Should still use per-preset versions, not the global v1.0.0
+        const reactCall = ingestSpy.mock.calls.find(
+          (call) => call[0] === "https://github.com/facebook/react"
+        );
+        expect(reactCall?.[2]?.version).toBe("v19.2.4");
+      } finally {
+        warnSpy.mockRestore();
+        ingestSpy.mockRestore();
+      }
+    });
   });
 
   describe("error handling", () => {

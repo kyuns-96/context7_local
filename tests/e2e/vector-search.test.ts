@@ -1,10 +1,16 @@
 import { describe, test, expect, beforeAll, afterAll } from "bun:test";
 import { spawn } from "child_process";
-import { mkdtempSync, rmSync } from "fs";
+import { mkdtempSync, rmSync, mkdirSync, writeFileSync } from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
 import { ingestLibrary } from "../../src/cli/ingest";
 import { Database } from "bun:sqlite";
+
+type ToolCallJson = {
+  result: {
+    content: Array<{ type: string; text: string }>;
+  };
+};
 
 describe("Vector Search E2E Tests", () => {
   let tempDir: string;
@@ -23,10 +29,33 @@ describe("Vector Search E2E Tests", () => {
     console.log(`Vector E2E: Using temp directory ${tempDir}`);
     console.log(`Vector E2E: Using port ${serverPort}`);
 
-    // Step 1: Ingest expressjs/express repo with embeddings
+    const mockRepoDir = join(tempDir, "mock-express");
+    const docsDir = join(mockRepoDir, "docs");
+
+    mkdirSync(docsDir, { recursive: true });
+
+    writeFileSync(
+      join(docsDir, "getting-started.md"),
+      `# Express Getting Started\n\nExpress is a Node.js web framework.\n\n## App\n\nCreate an express application and handle requests and responses.\n\n\`\`\`javascript\nimport express from 'express';\nconst app = express();\napp.get('/ping', (req, res) => res.send('pong'));\n\`\`\`\n`
+    );
+
+    writeFileSync(
+      join(docsDir, "routing.md"),
+      `# Routing and Middleware\n\nRouting defines how the app responds to a client request.\n\nMiddleware functions have access to the request and response objects.\n\nKeywords: routing, route, middleware, request, response.\n`
+    );
+
+    writeFileSync(
+      join(docsDir, "api.rst"),
+      `API Reference\n=============\n\n.. code-block:: javascript\n\n   // Express API example\n   app.use((req, res, next) => next());\n`
+    );
+
     console.log("Vector E2E: Starting ingestion with embeddings...");
     await ingestLibrary("https://github.com/expressjs/express", dbPath, {
       version: "latest",
+      localPath: mockRepoDir,
+      docsPath: "docs",
+      title: "Express",
+      description: "Fast, unopinionated, minimalist web framework for Node.js",
     });
     console.log("Vector E2E: Ingestion complete");
 
@@ -132,14 +161,14 @@ describe("Vector Search E2E Tests", () => {
       }),
     });
 
-    const queryData = (await queryResponse.json()) as any;
+    const queryData = (await queryResponse.json()) as ToolCallJson;
     expect(queryResponse.ok).toBe(true);
     expect(queryData.result).toBeDefined();
     expect(queryData.result.content).toBeDefined();
     expect(queryData.result.content.length).toBeGreaterThan(0);
-    expect(queryData.result.content[0].type).toBe("text");
+    expect(queryData.result.content[0]!.type).toBe("text");
 
-    const queryText = queryData.result.content[0].text;
+    const queryText = queryData.result.content[0]!.text;
     expect(queryText.length).toBeGreaterThan(0);
     
     // Verify results contain relevant documentation
@@ -184,14 +213,14 @@ describe("Vector Search E2E Tests", () => {
       }),
     });
 
-    const queryData = (await queryResponse.json()) as any;
+    const queryData = (await queryResponse.json()) as ToolCallJson;
     expect(queryResponse.ok).toBe(true);
     expect(queryData.result).toBeDefined();
     expect(queryData.result.content).toBeDefined();
     expect(queryData.result.content.length).toBeGreaterThan(0);
-    expect(queryData.result.content[0].type).toBe("text");
+    expect(queryData.result.content[0]!.type).toBe("text");
 
-    const queryText = queryData.result.content[0].text;
+    const queryText = queryData.result.content[0]!.text;
     expect(queryText.length).toBeGreaterThan(0);
     
     // Verify results are returned (hybrid should combine both search methods)
@@ -226,14 +255,14 @@ describe("Vector Search E2E Tests", () => {
       }),
     });
 
-    const queryData = (await queryResponse.json()) as any;
+    const queryData = (await queryResponse.json()) as ToolCallJson;
     expect(queryResponse.ok).toBe(true);
     expect(queryData.result).toBeDefined();
     expect(queryData.result.content).toBeDefined();
     expect(queryData.result.content.length).toBeGreaterThan(0);
-    expect(queryData.result.content[0].type).toBe("text");
+    expect(queryData.result.content[0]!.type).toBe("text");
 
-    const queryText = queryData.result.content[0].text;
+    const queryText = queryData.result.content[0]!.text;
     expect(queryText.length).toBeGreaterThan(0);
     
     console.log("Vector E2E: Keyword search works correctly");
@@ -287,14 +316,14 @@ describe("Vector Search E2E Tests", () => {
       }),
     });
 
-    const semanticData = (await semanticResponse.json()) as any;
-    const keywordData = (await keywordResponse.json()) as any;
+    const semanticData = (await semanticResponse.json()) as ToolCallJson;
+    const keywordData = (await keywordResponse.json()) as ToolCallJson;
 
     expect(semanticResponse.ok).toBe(true);
     expect(keywordResponse.ok).toBe(true);
 
-    const semanticText = semanticData.result.content[0].text;
-    const keywordText = keywordData.result.content[0].text;
+    const semanticText = semanticData.result.content[0]!.text;
+    const keywordText = keywordData.result.content[0]!.text;
 
     // Both should return results
     expect(semanticText.length).toBeGreaterThan(0);
@@ -331,13 +360,13 @@ describe("Vector Search E2E Tests", () => {
       }),
     });
 
-    const queryData = (await queryResponse.json()) as any;
+    const queryData = (await queryResponse.json()) as ToolCallJson;
     expect(queryResponse.ok).toBe(true);
     expect(queryData.result).toBeDefined();
     expect(queryData.result.content).toBeDefined();
     expect(queryData.result.content.length).toBeGreaterThan(0);
 
-    const queryText = queryData.result.content[0].text;
+    const queryText = queryData.result.content[0]!.text;
     expect(queryText.length).toBeGreaterThan(0);
     
     console.log("Vector E2E: Default search mode returned results");
@@ -368,7 +397,7 @@ describe("Vector Search E2E Tests", () => {
       }),
     });
 
-    const queryData = (await queryResponse.json()) as any;
+    const queryData = (await queryResponse.json()) as ToolCallJson;
     
     // Server should either accept it (falling back to hybrid) or return a result
     // MCP spec: servers should handle gracefully, not error out
@@ -401,12 +430,12 @@ describe("Vector Search E2E Tests", () => {
       }),
     });
 
-    const queryData = (await queryResponse.json()) as any;
+    const queryData = (await queryResponse.json()) as ToolCallJson;
     expect(queryResponse.ok).toBe(true);
     
     // Empty query generates null embedding, which should fall back to keyword search
     // Keyword search with empty query causes FTS5 syntax error or returns no results
-    const queryText = queryData.result.content[0].text;
+    const queryText = queryData.result.content[0]!.text;
     const hasError = 
       queryText.includes("fts5: syntax error") || 
       queryText.includes("No documentation found");
@@ -439,10 +468,10 @@ describe("Vector Search E2E Tests", () => {
       }),
     });
 
-    const queryData = (await queryResponse.json()) as any;
+    const queryData = (await queryResponse.json()) as ToolCallJson;
     expect(queryResponse.ok).toBe(true);
     expect(queryData.result).toBeDefined();
-    expect(queryData.result.content[0].text).toContain("No documentation found");
+    expect(queryData.result.content[0]!.text).toContain("No documentation found");
     
     console.log("Vector E2E: Non-existent library error handled correctly");
   }, 30000);

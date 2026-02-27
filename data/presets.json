@@ -3,25 +3,29 @@
     "repo": "https://github.com/facebook/react",
     "docsPath": "docs",
     "title": "React",
-    "description": "A JavaScript library for building user interfaces with component-based architecture"
+    "description": "A JavaScript library for building user interfaces with component-based architecture",
+    "versions": ["v19.2.4", "v19.1.5"]
   },
   "nextjs": {
     "repo": "https://github.com/vercel/next.js",
     "docsPath": "docs",
     "title": "Next.js",
-    "description": "The React Framework for Production with built-in routing and server-side rendering"
+    "description": "The React Framework for Production with built-in routing and server-side rendering",
+    "versions": ["v16.1.6", "v15.5.12"]
   },
   "typescript": {
     "repo": "https://github.com/microsoft/TypeScript",
     "docsPath": "doc",
     "title": "TypeScript",
-    "description": "A typed superset of JavaScript that compiles to clean, readable JavaScript code"
+    "description": "A typed superset of JavaScript that compiles to clean, readable JavaScript code",
+    "versions": ["v5.9.3", "v5.9.2"]
   },
   "nodejs": {
     "repo": "https://github.com/nodejs/node",
     "docsPath": "doc",
     "title": "Node.js",
-    "description": "JavaScript runtime built on Chrome's V8 engine for server-side development"
+    "description": "JavaScript runtime built on Chrome's V8 engine for server-side development",
+    "versions": ["v25.7.0", "v24.14.0"]
   },
   "express": {
     "repo": "https://github.com/expressjs/expressjs.com",
@@ -30,93 +34,172 @@
     "description": "Fast, unopinionated, minimalist web framework for Node.js"
   },
   "vue": {
-    "repo": "https://github.com/vuejs/vue-next",
-    "docsPath": "packages/sfc-playground/README.md",
+    "repo": "https://github.com/vuejs/docs",
+    "docsPath": "src/guide",
     "title": "Vue.js",
     "description": "The Progressive JavaScript Framework for building user interfaces"
   },
   "angular": {
     "repo": "https://github.com/angular/angular",
-    "docsPath": "aio/content",
+    "docsPath": "adev/src/content",
     "title": "Angular",
-    "description": "Platform for building mobile and desktop web applications"
+    "description": "Platform for building mobile and desktop web applications",
+    "versions": ["21.1.5", "21.1.4"]
   },
   "svelte": {
     "repo": "https://github.com/sveltejs/svelte",
     "docsPath": "documentation",
     "title": "Svelte",
-    "description": "Cybernetically enhanced web apps with minimal JavaScript overhead"
+    "description": "Cybernetically enhanced web apps with minimal JavaScript overhead",
+    "versions": ["svelte@5.53.3", "svelte@5.53.2"]
   },
   "tailwindcss": {
     "repo": "https://github.com/tailwindlabs/tailwindcss",
     "docsPath": "docs",
     "title": "Tailwind CSS",
-    "description": "Utility-first CSS framework for rapidly building custom designs"
+    "description": "Utility-first CSS framework for rapidly building custom designs",
+    "versions": ["v4.2.1", "v4.2.0"]
   },
   "prisma": {
     "repo": "https://github.com/prisma/prisma",
     "docsPath": "content/200-orm/100-overview",
     "title": "Prisma",
-    "description": "Next-generation ORM for Node.js and TypeScript with type-safe database access"
+    "description": "Next-generation ORM for Node.js and TypeScript with type-safe database access",
+    "versions": ["7.4.1", "7.4.0"]
   },
   "django": {
     "repo": "https://github.com/django/django",
     "docsPath": "docs",
     "title": "Django",
-    "description": "High-level Python Web framework that encourages rapid development and clean design"
+    "description": "High-level Python Web framework that encourages rapid development and clean design",
+    "versions": ["6.0.2", "5.2.9"]
   },
   "flask": {
     "repo": "https://github.com/pallets/flask",
     "docsPath": "docs",
     "title": "Flask",
-    "description": "Lightweight WSGI web application framework written in Python"
+    "description": "Lightweight WSGI web application framework written in Python",
+    "versions": ["3.1.3", "3.1.2"]
   },
   "fastapi": {
     "repo": "https://github.com/tiangolo/fastapi",
     "docsPath": "docs",
     "title": "FastAPI",
-    "description": "Modern, fast web framework for building APIs with Python 3.7+ based on standard Python type hints"
+    "description": "Modern, fast web framework for building APIs with Python 3.7+ based on standard Python type hints",
+    "versions": ["0.133.0", "0.132.1"]
   },
   "sqlalchemy": {
     "repo": "https://github.com/sqlalchemy/sqlalchemy",
     "docsPath": "doc",
     "title": "SQLAlchemy",
-    "description": "Python SQL toolkit and Object-Relational Mapping (ORM) library"
+    "description": "Python SQL toolkit and Object-Relational Mapping (ORM) library",
+    "versions": ["rel_2_0_47", "rel_2_0_46"]
   },
   "pydantic": {
     "repo": "https://github.com/pydantic/pydantic",
     "docsPath": "docs",
     "title": "Pydantic",
-    "description": "Data validation and settings management using Python type annotations"
+    "description": "Data validation and settings management using Python type annotations",
+    "versions": ["v2.12.0", "v2.11.0"]
   },
   "celery": {
     "repo": "https://github.com/celery/celery",
     "docsPath": "docs",
     "title": "Celery",
-    "description": "Distributed task queue library for Python with support for real-time processing"
+    "description": "Distributed task queue library for Python with support for real-time processing",
+    "versions": ["v5.6.2", "v5.6.1"]
   },
   "pytest": {
     "repo": "https://github.com/pytest-dev/pytest",
     "docsPath": "doc",
     "title": "Pytest",
-    "description": "Simple yet powerful testing framework for Python with plugin architecture"
+    "description": "Simple yet powerful testing framework for Python with plugin architecture",
+    "versions": ["9.0.2", "9.0.1"]
   },
   "numpy": {
     "repo": "https://github.com/numpy/numpy",
     "docsPath": "doc",
     "title": "NumPy",
-    "description": "Fundamental package for array computing and numerical computing in Python"
+    "description": "Fundamental package for array computing and numerical computing in Python",
+    "versions": ["v2.4.2", "v2.4.1"]
   },
   "pandas": {
     "repo": "https://github.com/pandas-dev/pandas",
     "docsPath": "doc",
     "title": "Pandas",
-    "description": "Flexible and powerful data analysis and manipulation library for Python"
+    "description": "Flexible and powerful data analysis and manipulation library for Python",
+    "versions": ["v3.0.1", "v3.0.0"]
   },
   "requests": {
     "repo": "https://github.com/psf/requests",
     "docsPath": "docs",
     "title": "Requests",
-    "description": "Elegant and simple HTTP library for Python built for human beings"
+    "description": "Elegant and simple HTTP library for Python built for human beings",
+    "versions": ["v2.32.5", "v2.32.4"]
+  },
+  "rust-book": {
+    "repo": "https://github.com/rust-lang/book",
+    "docsPath": "src",
+    "title": "The Rust Programming Language",
+    "description": "Official Rust language book covering ownership, borrowing, traits, and systems programming"
+  },
+  "dotnet": {
+    "repo": "https://github.com/dotnet/docs",
+    "docsPath": "docs",
+    "title": ".NET",
+    "description": "Cross-platform framework for building web, desktop, mobile, and cloud applications with C#"
+  },
+  "rails": {
+    "repo": "https://github.com/rails/rails",
+    "docsPath": "guides/source",
+    "title": "Ruby on Rails",
+    "description": "Full-stack Ruby web framework with conventions for rapid application development",
+    "versions": ["v8.1.2", "v8.0.4"]
+  },
+  "laravel": {
+    "repo": "https://github.com/laravel/docs",
+    "docsPath": ".",
+    "title": "Laravel",
+    "description": "Expressive PHP web framework with elegant syntax for artisan developers",
+    "versions": ["12.x", "11.x"]
+  },
+  "swift": {
+    "repo": "https://github.com/apple/swift-book",
+    "docsPath": "TSPL.docc",
+    "title": "The Swift Programming Language",
+    "description": "Official Swift language guide covering types, protocols, concurrency, and memory safety",
+    "versions": ["swift-6.2.3-fcs", "swift-6.1-fcs"]
+  },
+  "kotlin": {
+    "repo": "https://github.com/JetBrains/kotlin-web-site",
+    "docsPath": "docs/topics",
+    "title": "Kotlin",
+    "description": "Modern programming language for JVM, Android, and multiplatform development"
+  },
+  "docker": {
+    "repo": "https://github.com/docker/docs",
+    "docsPath": "content",
+    "title": "Docker",
+    "description": "Platform for building, shipping, and running containerized applications"
+  },
+  "kubernetes": {
+    "repo": "https://github.com/kubernetes/website",
+    "docsPath": "content/en/docs",
+    "title": "Kubernetes",
+    "description": "Container orchestration system for automating deployment, scaling, and management",
+    "versions": ["snapshot-initial-v1.35", "snapshot-initial-v1.34"]
+  },
+  "ansible": {
+    "repo": "https://github.com/ansible/ansible-documentation",
+    "docsPath": "docs/docsite/rst",
+    "title": "Ansible",
+    "description": "Automation platform for configuration management, deployment, and orchestration",
+    "versions": ["v2.20.3", "v2.19.7"]
+  },
+  "helm": {
+    "repo": "https://github.com/helm/helm-www",
+    "docsPath": "docs",
+    "title": "Helm",
+    "description": "Package manager for Kubernetes with charts for defining and installing applications"
   }
 }

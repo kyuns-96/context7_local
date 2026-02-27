@@ -107,10 +107,30 @@ IMPORTANT: Do not call this tool more than 3 times per question. If you cannot f
           .describe(
             "The question or task you need help with. Be specific and include relevant details. Good: 'How to set up authentication with JWT in Express.js' or 'React useEffect cleanup function examples'. Bad: 'auth' or 'hooks'. IMPORTANT: Do not include any sensitive or confidential information such as API keys, passwords, credentials, or personal data in your query."
           ),
+        searchMode: z
+          .enum(["keyword", "semantic", "hybrid"])
+          .optional()
+          .catch("hybrid")
+          .describe(
+            "Search mode: keyword (FTS5), semantic (vector), or hybrid (combined). Defaults to hybrid."
+          ),
+        useReranking: z
+          .boolean()
+          .optional()
+          .describe(
+            "Whether to rerank the candidate results using the configured reranker. Defaults to false."
+          ),
+        topK: z
+          .number()
+          .int()
+          .min(1)
+          .max(50)
+          .optional()
+          .describe("Maximum number of results to return (1-50). Defaults to 10."),
       },
     },
-    async ({ query, libraryId }) => {
-      return handleQueryDocs({ query, libraryId }, db);
+    async ({ query, libraryId, searchMode, useReranking, topK }) => {
+      return handleQueryDocs({ query, libraryId, searchMode, useReranking, topK }, db);
     }
   );
 

@@ -1,6 +1,5 @@
 import { Glob } from "bun";
 import { join } from "path";
-import { $ } from "bun";
 
 export interface CloneOptions {
   version?: string;
@@ -21,10 +20,16 @@ export async function cloneRepo(
 
   args.push(url, targetDir);
 
-  try {
-    await $`git ${args}`.quiet();
-  } catch (error: any) {
-    throw new Error(`Failed to clone repository: ${error.message}`);
+  const proc = Bun.spawn(["git", ...args], {
+    stdout: "ignore",
+    stderr: "pipe",
+  });
+
+  const exitCode = await proc.exited;
+
+  if (exitCode !== 0) {
+    const stderr = await new Response(proc.stderr).text();
+    throw new Error(`Failed to clone repository: ${stderr.trim()}`);
   }
 }
 

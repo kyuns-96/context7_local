@@ -11,6 +11,7 @@ import { generateEmbedding } from "../embeddings/generator";
 import { rerank } from "../reranking/manager";
 
 export interface ToolResponse {
+  [key: string]: unknown;
   content: Array<{ type: "text"; text: string }>;
 }
 

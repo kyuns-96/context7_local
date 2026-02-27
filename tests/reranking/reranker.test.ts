@@ -1,4 +1,4 @@
-import { describe, test, expect, mock, beforeEach } from 'bun:test';
+import { describe, test, expect, mock, afterEach } from 'bun:test';
 import { 
   NoOpReranker, 
   LocalReranker, 
@@ -6,11 +6,13 @@ import {
   JinaReranker 
 } from '../../src/reranking/reranker';
 
-describe('NoOpReranker', () => {
-  beforeEach(() => {
-    (globalThis as any).fetch = undefined;
-  });
+const originalFetch = globalThis.fetch;
 
+afterEach(() => {
+  globalThis.fetch = originalFetch;
+});
+
+describe('NoOpReranker', () => {
   test('constructs with correct name and modelName', () => {
     const reranker = new NoOpReranker();
     expect(reranker.name).toBe('none');
@@ -90,10 +92,6 @@ describe('NoOpReranker', () => {
 });
 
 describe('LocalReranker', () => {
-  beforeEach(() => {
-    (globalThis as any).fetch = undefined;
-  });
-
   test('constructs with correct defaults', () => {
     const reranker = new LocalReranker();
     expect(reranker.name).toBe('local');
@@ -114,10 +112,6 @@ describe('LocalReranker', () => {
 });
 
 describe('CohereReranker', () => {
-  beforeEach(() => {
-    (globalThis as any).fetch = undefined;
-  });
-
   test('constructs with default model', () => {
     const reranker = new CohereReranker({ apiKey: 'test-key' });
     expect(reranker.name).toBe('cohere');
@@ -157,7 +151,7 @@ describe('CohereReranker', () => {
       })
     }));
 
-    globalThis.fetch = mockFetch as any;
+    globalThis.fetch = mockFetch as unknown as typeof fetch;
 
     const reranker = new CohereReranker({ apiKey: 'test-key' });
     const documents = [
@@ -203,7 +197,7 @@ describe('CohereReranker', () => {
       })
     }));
 
-    globalThis.fetch = mockFetch as any;
+    globalThis.fetch = mockFetch as unknown as typeof fetch;
 
     const reranker = new CohereReranker({ apiKey: 'test-key' });
     const documents = ['Doc 1', 'Doc 2', 'Doc 3', 'Doc 4'];
@@ -212,10 +206,16 @@ describe('CohereReranker', () => {
 
     expect(results.length).toBe(2);
     
-    const call = mockFetch.mock.calls[0] as any;
-    if (call) {
-      const [, options] = call;
-      const body = JSON.parse(options.body);
+    const calls = mockFetch.mock.calls as unknown as Array<unknown[]>;
+    const call = calls[0];
+    const options = call?.[1];
+    const bodyText =
+      options && typeof options === "object" && "body" in options
+        ? (options as { body?: unknown }).body
+        : undefined;
+
+    if (typeof bodyText === "string") {
+      const body = JSON.parse(bodyText) as { top_n?: number };
       expect(body.top_n).toBe(2);
     }
   });
@@ -240,7 +240,7 @@ describe('CohereReranker', () => {
       });
     });
 
-    globalThis.fetch = mockFetch as any;
+    globalThis.fetch = mockFetch as unknown as typeof fetch;
 
     const reranker = new CohereReranker({ apiKey: 'test-key' });
     const results = await reranker.rerank('test', ['Document 1']);
@@ -269,7 +269,7 @@ describe('CohereReranker', () => {
       });
     });
 
-    globalThis.fetch = mockFetch as any;
+    globalThis.fetch = mockFetch as unknown as typeof fetch;
 
     const reranker = new CohereReranker({ apiKey: 'test-key' });
     const results = await reranker.rerank('test', ['Document 1']);
@@ -285,7 +285,7 @@ describe('CohereReranker', () => {
       json: () => Promise.resolve({ error: 'Invalid API key' })
     }));
 
-    globalThis.fetch = mockFetch as any;
+    globalThis.fetch = mockFetch as unknown as typeof fetch;
 
     const reranker = new CohereReranker({ apiKey: 'invalid-key' });
     
@@ -302,7 +302,7 @@ describe('CohereReranker', () => {
       json: () => Promise.resolve({ message: 'Invalid request' })
     }));
 
-    globalThis.fetch = mockFetch as any;
+    globalThis.fetch = mockFetch as unknown as typeof fetch;
 
     const reranker = new CohereReranker({ apiKey: 'test-key' });
     
@@ -319,7 +319,7 @@ describe('CohereReranker', () => {
       json: () => Promise.resolve({ error: 'Internal server error' })
     }));
 
-    globalThis.fetch = mockFetch as any;
+    globalThis.fetch = mockFetch as unknown as typeof fetch;
 
     const reranker = new CohereReranker({ apiKey: 'test-key' });
     
@@ -345,7 +345,7 @@ describe('CohereReranker', () => {
       });
     });
 
-    globalThis.fetch = mockFetch as any;
+    globalThis.fetch = mockFetch as unknown as typeof fetch;
 
     const reranker = new CohereReranker({ apiKey: 'test-key' });
     const results = await reranker.rerank('test', ['Document 1']);
@@ -364,7 +364,7 @@ describe('CohereReranker', () => {
   test('throws after max retries on network error', async () => {
     const mockFetch = mock(() => Promise.reject(new TypeError('fetch failed')));
 
-    globalThis.fetch = mockFetch as any;
+    globalThis.fetch = mockFetch as unknown as typeof fetch;
 
     const reranker = new CohereReranker({ apiKey: 'test-key' });
     
@@ -381,7 +381,7 @@ describe('CohereReranker', () => {
       json: () => Promise.resolve({ error: 'Rate limit exceeded' })
     }));
 
-    globalThis.fetch = mockFetch as any;
+    globalThis.fetch = mockFetch as unknown as typeof fetch;
 
     const reranker = new CohereReranker({ apiKey: 'test-key' });
     
@@ -393,10 +393,6 @@ describe('CohereReranker', () => {
 });
 
 describe('JinaReranker', () => {
-  beforeEach(() => {
-    (globalThis as any).fetch = undefined;
-  });
-
   test('constructs with default model', () => {
     const reranker = new JinaReranker({ apiKey: 'test-key' });
     expect(reranker.name).toBe('jina');
@@ -436,7 +432,7 @@ describe('JinaReranker', () => {
       })
     }));
 
-    globalThis.fetch = mockFetch as any;
+    globalThis.fetch = mockFetch as unknown as typeof fetch;
 
     const reranker = new JinaReranker({ apiKey: 'test-key' });
     const documents = [
@@ -482,7 +478,7 @@ describe('JinaReranker', () => {
       })
     }));
 
-    globalThis.fetch = mockFetch as any;
+    globalThis.fetch = mockFetch as unknown as typeof fetch;
 
     const reranker = new JinaReranker({ apiKey: 'test-key' });
     const documents = ['Doc 1', 'Doc 2', 'Doc 3', 'Doc 4'];
@@ -491,10 +487,16 @@ describe('JinaReranker', () => {
 
     expect(results.length).toBe(2);
     
-    const call = mockFetch.mock.calls[0] as any;
-    if (call) {
-      const [, options] = call;
-      const body = JSON.parse(options.body);
+    const calls = mockFetch.mock.calls as unknown as Array<unknown[]>;
+    const call = calls[0];
+    const options = call?.[1];
+    const bodyText =
+      options && typeof options === "object" && "body" in options
+        ? (options as { body?: unknown }).body
+        : undefined;
+
+    if (typeof bodyText === "string") {
+      const body = JSON.parse(bodyText) as { top_n?: number };
       expect(body.top_n).toBe(2);
     }
   });
@@ -519,7 +521,7 @@ describe('JinaReranker', () => {
       });
     });
 
-    globalThis.fetch = mockFetch as any;
+    globalThis.fetch = mockFetch as unknown as typeof fetch;
 
     const reranker = new JinaReranker({ apiKey: 'test-key' });
     const results = await reranker.rerank('test', ['Document 1']);
@@ -548,7 +550,7 @@ describe('JinaReranker', () => {
       });
     });
 
-    globalThis.fetch = mockFetch as any;
+    globalThis.fetch = mockFetch as unknown as typeof fetch;
 
     const reranker = new JinaReranker({ apiKey: 'test-key' });
     const results = await reranker.rerank('test', ['Document 1']);
@@ -564,7 +566,7 @@ describe('JinaReranker', () => {
       json: () => Promise.resolve({ error: 'Invalid API key' })
     }));
 
-    globalThis.fetch = mockFetch as any;
+    globalThis.fetch = mockFetch as unknown as typeof fetch;
 
     const reranker = new JinaReranker({ apiKey: 'invalid-key' });
     
@@ -581,7 +583,7 @@ describe('JinaReranker', () => {
       json: () => Promise.resolve({ message: 'Invalid request' })
     }));
 
-    globalThis.fetch = mockFetch as any;
+    globalThis.fetch = mockFetch as unknown as typeof fetch;
 
     const reranker = new JinaReranker({ apiKey: 'test-key' });
     
@@ -598,7 +600,7 @@ describe('JinaReranker', () => {
       json: () => Promise.resolve({ error: 'Internal server error' })
     }));
 
-    globalThis.fetch = mockFetch as any;
+    globalThis.fetch = mockFetch as unknown as typeof fetch;
 
     const reranker = new JinaReranker({ apiKey: 'test-key' });
     
@@ -624,7 +626,7 @@ describe('JinaReranker', () => {
       });
     });
 
-    globalThis.fetch = mockFetch as any;
+    globalThis.fetch = mockFetch as unknown as typeof fetch;
 
     const reranker = new JinaReranker({ apiKey: 'test-key' });
     const results = await reranker.rerank('test', ['Document 1']);
@@ -643,7 +645,7 @@ describe('JinaReranker', () => {
   test('throws after max retries on network error', async () => {
     const mockFetch = mock(() => Promise.reject(new TypeError('fetch failed')));
 
-    globalThis.fetch = mockFetch as any;
+    globalThis.fetch = mockFetch as unknown as typeof fetch;
 
     const reranker = new JinaReranker({ apiKey: 'test-key' });
     
@@ -660,7 +662,7 @@ describe('JinaReranker', () => {
       json: () => Promise.resolve({ error: 'Rate limit exceeded' })
     }));
 
-    globalThis.fetch = mockFetch as any;
+    globalThis.fetch = mockFetch as unknown as typeof fetch;
 
     const reranker = new JinaReranker({ apiKey: 'test-key' });
     

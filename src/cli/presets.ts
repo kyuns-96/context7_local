@@ -6,6 +6,7 @@ export interface PresetConfig {
   docsPath: string;
   title: string;
   description: string;
+  versions?: string[];  // git refs (tags or branches), latest-first
 }
 
 export interface PresetRegistry {

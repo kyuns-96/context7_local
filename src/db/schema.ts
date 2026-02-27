@@ -64,6 +64,25 @@ export function createSchema(db: Database): void {
         FOREIGN KEY (library_id, library_version) REFERENCES libraries(id, version)
     );
 
+    CREATE TABLE IF NOT EXISTS snippet_vector_index (
+        snippet_id INTEGER PRIMARY KEY,
+        library_id TEXT NOT NULL,
+        library_version TEXT NOT NULL,
+        band1 INTEGER NOT NULL,
+        band2 INTEGER NOT NULL,
+        band3 INTEGER NOT NULL,
+        band4 INTEGER NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_vector_index_band1
+      ON snippet_vector_index (library_id, library_version, band1);
+    CREATE INDEX IF NOT EXISTS idx_vector_index_band2
+      ON snippet_vector_index (library_id, library_version, band2);
+    CREATE INDEX IF NOT EXISTS idx_vector_index_band3
+      ON snippet_vector_index (library_id, library_version, band3);
+    CREATE INDEX IF NOT EXISTS idx_vector_index_band4
+      ON snippet_vector_index (library_id, library_version, band4);
+
     CREATE VIRTUAL TABLE IF NOT EXISTS snippets_fts USING fts5(
         title, content, source_path,
         content='snippets', content_rowid='id',
@@ -83,6 +102,15 @@ export function createSchema(db: Database): void {
 
     CREATE TRIGGER IF NOT EXISTS snippets_fts_delete BEFORE DELETE ON snippets BEGIN
         DELETE FROM snippets_fts WHERE rowid = old.id;
+    END;
+
+    CREATE TRIGGER IF NOT EXISTS snippet_vector_index_delete BEFORE DELETE ON snippets BEGIN
+        DELETE FROM snippet_vector_index WHERE snippet_id = old.id;
+    END;
+
+    CREATE TRIGGER IF NOT EXISTS snippet_vector_index_clear_on_embedding_update
+    AFTER UPDATE OF embedding ON snippets BEGIN
+        DELETE FROM snippet_vector_index WHERE snippet_id = old.id;
     END;
   `);
 }

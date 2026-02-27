@@ -12,8 +12,8 @@ coverage
 
 # logs
 logs
-_.log
-report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
+*.log
+report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 
 # dotenv environment variable files
 .env
@@ -41,4 +41,18 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 
 # Configuration files (contain sensitive API keys)
 config.json
+config.*.json
 local_context7.config.json
+
+# Database archives and backups
+*.db.tar.gz
+*.db.tar.gz.part*
+*.db.backup
+split-dbs/
+
+# Python bytecode
+__pycache__/
+*.pyc
+
+# Sisyphus
+.sisyphus/

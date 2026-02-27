@@ -1,19 +1,23 @@
 import { Command } from "commander";
 import { existsSync, rmSync } from "fs";
-import { join } from "path";
+import { join, extname } from "path";
 import { openDatabase } from "../db/connection";
 import { ingestLibrary, type IngestOptions } from "./ingest";
 import {
   cloneRepo,
-  listMarkdownFiles,
+  listDocFiles,
   buildLibraryId,
 } from "../scraper/github";
 import { parseMarkdown } from "../scraper/markdown";
+import { parseRst } from "../scraper/rst";
 import { chunkDocument } from "../scraper/chunker";
 import { generateEmbeddings } from "../embeddings/generator";
 import { initializeProvider } from "../embeddings/generator";
 import { initializeReranker } from "../reranking/manager";
 import { loadConfig } from "../config/loader";
+import { getPreset, loadPresets } from "./presets";
+import { resolveDocsScan, resolveRepoRelativePath } from "./docs";
+import { computeVectorBands } from "../db/vector-index";
 
 export interface ParsedCommand {
   command: string;
@@ -50,7 +54,10 @@ export function parseCliCommand(args: string[]): ParsedCommand {
       .requiredOption("--db <path>", "Path to SQLite database file")
       .option("--config <path>", "Path to JSON configuration file")
       .option("--version <tag>", "Git tag or branch name to checkout")
-      .option("--docs-path <glob>", "Path to documentation directory")
+      .option(
+        "--docs-path <path>",
+        "Docs path (directory, file, or glob relative to repo root)"
+      )
       .option("--preset <name>", "Use a preset library configuration")
       .option("--preset-all", "Ingest all preset libraries")
       .option("--embedding-provider <provider>", "Embedding provider: 'local' or 'openai'", "local")
@@ -62,8 +69,8 @@ export function parseCliCommand(args: string[]): ParsedCommand {
       .option("--reranking-model <model>", "Reranking model name")
       .option("--reranking-api-url <url>", "Custom reranking API endpoint URL")
       .action((repoUrl, options) => {
-       if (!options.presetAll && !repoUrl) {
-         throw new Error("repo-url is required unless --preset-all is used");
+       if (!repoUrl && !options.preset && !options.presetAll) {
+         throw new Error("repo-url is required unless --preset or --preset-all is used");
        }
 
         parsedResult = {
@@ -200,16 +207,8 @@ async function handleIngest(parsed: ParsedCommand): Promise<void> {
     throw new Error("--db is required for ingest command");
   }
 
-  if (parsed.presetAll) {
-    throw new Error("--preset-all is not yet implemented");
-  }
-
-  if (parsed.preset) {
-    throw new Error("--preset is not yet implemented");
-  }
-
-  if (!parsed.repoUrl) {
-    throw new Error("repo-url is required for ingest command");
+  if (parsed.presetAll && parsed.preset) {
+    throw new Error("--preset and --preset-all are mutually exclusive");
   }
 
   // Load configuration file if specified
@@ -252,12 +251,68 @@ async function handleIngest(parsed: ParsedCommand): Promise<void> {
     apiUrl: rerankingConfig.apiUrl,
   });
 
-  const options: IngestOptions = {
+  if (parsed.presetAll) {
+    if (parsed.version) {
+      console.warn("Warning: --version is ignored with --preset-all (each preset uses its own version)");
+    }
+
+    const presets = loadPresets();
+    const presetEntries = Object.entries(presets).sort(([a], [b]) => a.localeCompare(b));
+    const failures: Array<{ name: string; error: string }> = [];
+
+    for (const [name, preset] of presetEntries) {
+      const options: IngestOptions = {
+        version: preset.versions?.[0],
+        docsPath: preset.docsPath,
+        title: preset.title,
+        description: preset.description,
+      };
+
+      try {
+        await ingestLibrary(preset.repo, parsed.db, options);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        failures.push({ name, error: message });
+        console.error(`[preset-all] Failed to ingest ${name}: ${message}`);
+      }
+    }
+
+    if (failures.length > 0) {
+      const summary = failures
+        .map((f) => `- ${f.name}: ${f.error}`)
+        .join("\n");
+      throw new Error(`Failed to ingest ${failures.length} preset(s):\n${summary}`);
+    }
+
+    return;
+  }
+
+  let repoUrl = parsed.repoUrl;
+  let options: IngestOptions = {
     version: parsed.version,
     docsPath: parsed.docsPath,
   };
 
-  await ingestLibrary(parsed.repoUrl, parsed.db, options);
+  if (parsed.preset) {
+    const preset = getPreset(parsed.preset);
+    if (!preset) {
+      throw new Error(`Unknown preset: ${parsed.preset}`);
+    }
+
+    repoUrl = preset.repo;
+    options = {
+      version: parsed.version ?? preset.versions?.[0],
+      docsPath: parsed.docsPath ?? preset.docsPath,
+      title: preset.title,
+      description: preset.description,
+    };
+  }
+
+  if (!repoUrl) {
+    throw new Error("repo-url is required for ingest command");
+  }
+
+  await ingestLibrary(repoUrl, parsed.db, options);
 }
 
 async function handleList(parsed: ParsedCommand): Promise<void> {
@@ -287,7 +342,14 @@ async function handleList(parsed: ParsedCommand): Promise<void> {
     "-------------------------------------------------------------------"
   );
 
-  for (const lib of libraries as any[]) {
+  const rows = libraries as Array<{
+    id: string;
+    version: string;
+    total_snippets: number;
+    ingested_at: string;
+  }>;
+
+  for (const lib of rows) {
     const id = lib.id.padEnd(20);
     const version = lib.version.padEnd(10);
     const snippets = String(lib.total_snippets).padEnd(8);
@@ -353,26 +415,28 @@ async function handlePreview(parsed: ParsedCommand): Promise<void> {
     console.log(`Cloning ${parsed.repoUrl}...`);
     await cloneRepo(parsed.repoUrl, repoDir);
 
-    const scanDir = parsed.docsPath
-      ? join(repoDir, parsed.docsPath)
-      : repoDir;
-    const globPattern = "**/*.md";
+    const { scanDir, globPattern, repoRelativePrefix } = resolveDocsScan(
+      repoDir,
+      parsed.docsPath
+    );
 
-    console.log("Scanning for markdown files...");
-    const markdownFiles = await listMarkdownFiles(scanDir, globPattern);
+    console.log("Scanning for documentation files...");
+    const docFiles = await listDocFiles(scanDir, globPattern);
 
-    console.log(`Found ${markdownFiles.length} markdown files.`);
+    console.log(`Found ${docFiles.length} documentation files.`);
     console.log(`\nParsing and chunking files...`);
 
     let totalChunks = 0;
     let totalTokens = 0;
 
-    for (const filePath of markdownFiles) {
-      const fullPath = join(scanDir, filePath);
-      const content = Bun.file(fullPath).text();
-      const fileContent = await content;
+    for (const filePath of docFiles) {
+      const repoRelativePath = resolveRepoRelativePath(repoRelativePrefix, filePath);
+      const fullPath = join(repoDir, repoRelativePath);
+      const fileContent = await Bun.file(fullPath).text();
 
-      const sections = parseMarkdown(fileContent);
+      const ext = extname(repoRelativePath).toLowerCase();
+      const sections =
+        ext === ".rst" || ext === ".txt" ? parseRst(fileContent) : parseMarkdown(fileContent);
       const chunks = chunkDocument(sections, { maxChunkSize: 1500 });
 
       totalChunks += chunks.length;
@@ -383,7 +447,7 @@ async function handlePreview(parsed: ParsedCommand): Promise<void> {
 
     console.log("\n--- Preview Summary ---");
     console.log(`Library ID: ${libraryId}`);
-    console.log(`Files: ${markdownFiles.length}`);
+    console.log(`Files: ${docFiles.length}`);
     console.log(`Total Chunks: ${totalChunks}`);
     console.log(`Total Tokens: ${totalTokens}`);
     console.log(`Avg Tokens/Chunk: ${Math.round(totalTokens / totalChunks)}`);
@@ -444,8 +508,8 @@ async function handleVectorize(parsed: ParsedCommand): Promise<void> {
 
   try {
     // Build query based on filters
-    let query = `SELECT id, content FROM snippets WHERE 1=1`;
-    const params: any[] = [];
+    let query = `SELECT id, library_id, library_version, content FROM snippets WHERE 1=1`;
+    const params: string[] = [];
 
     if (!parsed.force) {
       query += ` AND embedding IS NULL`;
@@ -459,14 +523,18 @@ async function handleVectorize(parsed: ParsedCommand): Promise<void> {
       params.push(parsed.version);
     }
 
-    const snippets = db.query(query).all(...params) as Array<{ id: number; content: string }>;
-    
+    const snippets = db.query(query).all(...params) as Array<{
+      id: number;
+      library_id: string;
+      library_version: string;
+      content: string;
+    }>;
+
     if (snippets.length === 0) {
       console.log("No snippets found to vectorize.");
-      return;
+    } else {
+      console.log(`Found ${snippets.length} snippets to vectorize`);
     }
-
-    console.log(`Found ${snippets.length} snippets to vectorize`);
 
     // Generate embeddings in batches
     const BATCH_SIZE = 10;
@@ -474,7 +542,7 @@ async function handleVectorize(parsed: ParsedCommand): Promise<void> {
 
     for (let i = 0; i < snippets.length; i += BATCH_SIZE) {
       const batch = snippets.slice(i, i + BATCH_SIZE);
-      const contents = batch.map(s => s.content);
+      const contents = batch.map((s) => s.content);
 
       try {
         const embeddings = await generateEmbeddings(contents);
@@ -486,7 +554,30 @@ async function handleVectorize(parsed: ParsedCommand): Promise<void> {
             if (!snippet) continue;
             const embedding = embeddings[j];
             const embeddingStr = embedding ? JSON.stringify(embedding) : null;
-            db.run("UPDATE snippets SET embedding = ? WHERE id = ?", [embeddingStr, snippet.id]);
+            db.run("UPDATE snippets SET embedding = ? WHERE id = ?", [
+              embeddingStr,
+              snippet.id,
+            ]);
+
+            if (embedding && embeddingStr) {
+              const bands = computeVectorBands(embedding);
+              if (bands) {
+                db.run(
+                  `INSERT OR REPLACE INTO snippet_vector_index (
+                     snippet_id, library_id, library_version, band1, band2, band3, band4
+                   ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                  [
+                    snippet.id,
+                    snippet.library_id,
+                    snippet.library_version,
+                    bands.band1,
+                    bands.band2,
+                    bands.band3,
+                    bands.band4,
+                  ]
+                );
+              }
+            }
             updated++;
           }
           db.exec("COMMIT");
@@ -497,12 +588,101 @@ async function handleVectorize(parsed: ParsedCommand): Promise<void> {
 
         const progress = Math.min(i + BATCH_SIZE, snippets.length);
         console.log(`Vectorized ${progress}/${snippets.length} snippets`);
-      } catch (error: any) {
-        console.warn(`Failed to vectorize batch: ${error.message}`);
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : String(error);
+        console.warn(`Failed to vectorize batch: ${message}`);
       }
     }
 
-    console.log(`\nUpdated ${updated} snippets with embeddings`);
+    if (snippets.length > 0) {
+      console.log(`\nUpdated ${updated} snippets with embeddings`);
+    }
+
+    function parseEmbeddingJson(value: string): number[] | null {
+      try {
+        const parsed: unknown = JSON.parse(value);
+        if (!Array.isArray(parsed)) return null;
+        for (const item of parsed) {
+          if (typeof item !== "number") return null;
+        }
+        return parsed as number[];
+      } catch {
+        return null;
+      }
+    }
+
+    const INDEX_BATCH_SIZE = 500;
+    let indexed = 0;
+    let lastId = 0;
+
+    while (true) {
+      let indexQuery = `
+        SELECT s.id, s.library_id, s.library_version, s.embedding
+        FROM snippets s
+        LEFT JOIN snippet_vector_index v ON v.snippet_id = s.id
+        WHERE s.embedding IS NOT NULL
+          AND v.snippet_id IS NULL
+          AND s.id > ?
+      `;
+
+      const indexParams: Array<number | string> = [lastId];
+
+      if (parsed.libraryId) {
+        indexQuery += ` AND s.library_id = ?`;
+        indexParams.push(parsed.libraryId);
+      }
+      if (parsed.version) {
+        indexQuery += ` AND s.library_version = ?`;
+        indexParams.push(parsed.version);
+      }
+
+      indexQuery += ` ORDER BY s.id LIMIT ?`;
+      indexParams.push(INDEX_BATCH_SIZE);
+
+      const rows = db.query(indexQuery).all(...indexParams) as Array<{
+        id: number;
+        library_id: string;
+        library_version: string;
+        embedding: string;
+      }>;
+
+      if (rows.length === 0) break;
+      lastId = rows[rows.length - 1]?.id ?? lastId;
+
+      db.exec("BEGIN");
+      try {
+        for (const row of rows) {
+          const vector = parseEmbeddingJson(row.embedding);
+          if (!vector) continue;
+          const bands = computeVectorBands(vector);
+          if (!bands) continue;
+
+          db.run(
+            `INSERT OR REPLACE INTO snippet_vector_index (
+               snippet_id, library_id, library_version, band1, band2, band3, band4
+             ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+            [
+              row.id,
+              row.library_id,
+              row.library_version,
+              bands.band1,
+              bands.band2,
+              bands.band3,
+              bands.band4,
+            ]
+          );
+          indexed++;
+        }
+        db.exec("COMMIT");
+      } catch (error) {
+        db.exec("ROLLBACK");
+        throw error;
+      }
+    }
+
+    if (indexed > 0) {
+      console.log(`Indexed ${indexed} snippet embedding(s) for faster semantic search`);
+    }
   } finally {
     db.close();
   }

@@ -1,5 +1,128 @@
 import type { Database } from "bun:sqlite";
-import { cosineSimilarity } from "./schema";
+import { computeVectorBands } from "./vector-index";
+
+const tableExistenceCache = new WeakMap<Database, Map<string, boolean>>();
+
+function dbHasTable(db: Database, tableName: string): boolean {
+  let cache = tableExistenceCache.get(db);
+  if (!cache) {
+    cache = new Map<string, boolean>();
+    tableExistenceCache.set(db, cache);
+  }
+
+  const cached = cache.get(tableName);
+  if (cached !== undefined) return cached;
+
+  const row = db
+    .query("SELECT name FROM sqlite_master WHERE type='table' AND name = ?1")
+    .get(tableName) as { name: string } | null;
+
+  const exists = row?.name === tableName;
+  cache.set(tableName, exists);
+  return exists;
+}
+
+function parseEmbeddingJson(value: string): number[] | null {
+  try {
+    const parsed: unknown = JSON.parse(value);
+    if (!Array.isArray(parsed)) return null;
+
+    for (const item of parsed) {
+      if (typeof item !== "number") return null;
+    }
+
+    return parsed as number[];
+  } catch {
+    return null;
+  }
+}
+
+function vectorMagnitude(values: number[]): number {
+  let sum = 0;
+  for (let i = 0; i < values.length; i++) {
+    const v = values[i];
+    if (v === undefined) continue;
+    sum += v * v;
+  }
+  return Math.sqrt(sum);
+}
+
+function cosineSimilarityVectors(query: number[], queryMag: number, doc: number[]): number | null {
+  if (query.length !== doc.length) return null;
+
+  let dot = 0;
+  let docSumSq = 0;
+
+  for (let i = 0; i < query.length; i++) {
+    const q = query[i];
+    const d = doc[i];
+    if (q === undefined || d === undefined) return null;
+    dot += q * d;
+    docSumSq += d * d;
+  }
+
+  const denom = queryMag * Math.sqrt(docSumSq);
+  if (denom === 0) return null;
+  return dot / denom;
+}
+
+function fetchSnippetsByIds(ids: number[], db: Database): DocumentationSnippet[] {
+  if (ids.length === 0) return [];
+
+  const placeholders = ids.map(() => "?").join(",");
+  const stmt = db.query(`
+    SELECT
+      id,
+      library_id,
+      library_version,
+      title,
+      content,
+      source_path,
+      language,
+      token_count,
+      breadcrumb
+    FROM snippets
+    WHERE id IN (${placeholders})
+  `);
+
+  return stmt.all(...ids) as DocumentationSnippet[];
+}
+
+function queryVectorCandidateIds(
+  queryEmbedding: number[],
+  libraryId: string,
+  version: string,
+  db: Database,
+  maxCandidates: number
+): number[] {
+  if (!dbHasTable(db, "snippet_vector_index")) return [];
+
+  const bands = computeVectorBands(queryEmbedding);
+  if (!bands) return [];
+
+  const stmt = db.query(`
+    SELECT snippet_id
+    FROM snippet_vector_index
+    WHERE library_id = ?1
+      AND library_version = ?2
+      AND (
+        band1 = ?3 OR band2 = ?4 OR band3 = ?5 OR band4 = ?6
+      )
+    LIMIT ?7
+  `);
+
+  const rows = stmt.all(
+    libraryId,
+    version,
+    bands.band1,
+    bands.band2,
+    bands.band3,
+    bands.band4,
+    maxCandidates
+  ) as Array<{ snippet_id: number }>;
+
+  return rows.map((r) => r.snippet_id);
+}
 
 export interface LibrarySearchResult {
   id: string;
@@ -85,52 +208,106 @@ export function queryDocumentationByVector(
   db: Database,
   limit: number = 20
 ): DocumentationSnippet[] {
-  // Convert embedding to JSON string for comparison
-  const queryEmbeddingStr = JSON.stringify(queryEmbedding);
-  
-  // Fetch all snippets with embeddings
+  const queryMag = vectorMagnitude(queryEmbedding);
+  if (queryMag === 0) return [];
+
+  const maxCandidates = Math.max(limit * 200, 1000);
+  const candidateIds = queryVectorCandidateIds(
+    queryEmbedding,
+    libraryId,
+    version,
+    db,
+    maxCandidates
+  );
+
+  const scored = queryVectorScores(queryEmbedding, queryMag, libraryId, version, db, limit, candidateIds);
+  const ids = scored.map((s) => s.id);
+
+  const snippets = fetchSnippetsByIds(ids, db);
+  const snippetMap = new Map<number, DocumentationSnippet>(snippets.map((s) => [s.id, s]));
+
+  return scored
+    .map((s) => snippetMap.get(s.id))
+    .filter((s): s is DocumentationSnippet => s !== undefined);
+}
+
+function queryVectorScores(
+  queryEmbedding: number[],
+  queryMag: number,
+  libraryId: string,
+  version: string,
+  db: Database,
+  limit: number,
+  candidateIds: number[]
+): Array<{ id: number; score: number }> {
+  const rows = candidateIds.length > 0
+    ? fetchSnippetEmbeddingsByIds(candidateIds, db)
+    : fetchSnippetEmbeddingsByLibrary(libraryId, version, db);
+
+  const top: Array<{ id: number; score: number }> = [];
+
+  for (const row of rows) {
+    const doc = parseEmbeddingJson(row.embedding);
+    if (!doc) continue;
+
+    const score = cosineSimilarityVectors(queryEmbedding, queryMag, doc);
+    if (score === null) continue;
+
+    if (top.length < limit) {
+      top.push({ id: row.id, score });
+      continue;
+    }
+
+    let minIndex = 0;
+    let minScore = top[0]?.score ?? score;
+
+    for (let i = 1; i < top.length; i++) {
+      const s = top[i]?.score;
+      if (s !== undefined && s < minScore) {
+        minScore = s;
+        minIndex = i;
+      }
+    }
+
+    if (score > minScore) {
+      top[minIndex] = { id: row.id, score };
+    }
+  }
+
+  top.sort((a, b) => b.score - a.score);
+  return top;
+}
+
+function fetchSnippetEmbeddingsByLibrary(
+  libraryId: string,
+  version: string,
+  db: Database
+): Array<{ id: number; embedding: string }> {
   const stmt = db.query(`
-    SELECT 
-      id,
-      library_id,
-      library_version,
-      title,
-      content,
-      source_path,
-      language,
-      token_count,
-      breadcrumb,
-      embedding
+    SELECT id, embedding
     FROM snippets
-    WHERE library_id = ?1 
-      AND library_version = ?2 
+    WHERE library_id = ?1
+      AND library_version = ?2
       AND embedding IS NOT NULL
   `);
-  
-  const snippets = stmt.all(libraryId, version) as (DocumentationSnippet & { embedding: string })[];
-  
-  // Compute similarities in-memory
-  const results = snippets
-    .map(snippet => ({
-      ...snippet,
-      similarity: cosineSimilarity(queryEmbeddingStr, snippet.embedding)
-    }))
-    .filter(r => r.similarity !== null)
-    .sort((a, b) => (b.similarity ?? 0) - (a.similarity ?? 0))
-    .slice(0, limit);
-  
-  // Return as DocumentationSnippet[] (excluding embedding field)
-  return results.map(r => ({
-    id: r.id,
-    library_id: r.library_id,
-    library_version: r.library_version,
-    title: r.title,
-    content: r.content,
-    source_path: r.source_path,
-    language: r.language,
-    token_count: r.token_count,
-    breadcrumb: r.breadcrumb
-  }));
+
+  return stmt.all(libraryId, version) as Array<{ id: number; embedding: string }>;
+}
+
+function fetchSnippetEmbeddingsByIds(
+  ids: number[],
+  db: Database
+): Array<{ id: number; embedding: string }> {
+  if (ids.length === 0) return [];
+  const placeholders = ids.map(() => "?").join(",");
+  const stmt = db.query(`
+    SELECT id, embedding
+    FROM snippets
+    WHERE id IN (${placeholders})
+      AND embedding IS NOT NULL
+  `);
+
+  return stmt.all(...ids) as Array<{ id: number; embedding: string }>;
 }
 
 export function queryDocumentationHybrid(
@@ -141,10 +318,11 @@ export function queryDocumentationHybrid(
   db: Database,
   limit: number = 20
 ): DocumentationSnippet[] {
-  // 1. Run FTS5 search with more candidates if reranking is possible
-  const candidateLimit = Math.max(limit * 5, 100); // Get 5x the limit or at least 100
+  const queryMag = vectorMagnitude(queryEmbedding);
+  const candidateLimit = Math.max(limit * 5, 100);
+
   const ftsStmt = db.query(`
-    SELECT 
+    SELECT
       s.id,
       s.library_id,
       s.library_version,
@@ -160,96 +338,79 @@ export function queryDocumentationHybrid(
     WHERE fts.snippets_fts MATCH ?1
       AND s.library_id = ?2
       AND s.library_version = ?3
+    ORDER BY fts.rank
     LIMIT ?4
   `);
-   
-   const ftsResults = ftsStmt.all(query, libraryId, version, candidateLimit) as (DocumentationSnippet & { fts_score: number })[];
-  
-  // 2. Run vector search
-  const queryEmbeddingStr = JSON.stringify(queryEmbedding);
-  
-  const vectorStmt = db.query(`
-    SELECT 
-      id,
-      library_id,
-      library_version,
-      title,
-      content,
-      source_path,
-      language,
-      token_count,
-      breadcrumb,
-      embedding
-    FROM snippets
-    WHERE library_id = ?1 
-      AND library_version = ?2 
-      AND embedding IS NOT NULL
-  `);
-  
-  const vectorSnippets = vectorStmt.all(libraryId, version) as (DocumentationSnippet & { embedding: string })[];
-  
-  const vectorResults = vectorSnippets
-    .map(snippet => ({
-      ...snippet,
-      vector_score: cosineSimilarity(queryEmbeddingStr, snippet.embedding) ?? 0
-    }))
-    .filter(r => r.vector_score > 0);
-  
-  // 3. Normalize scores to 0-1 range
-  const ftsMin = Math.min(...ftsResults.map(r => r.fts_score));
-  const ftsMax = Math.max(...ftsResults.map(r => r.fts_score));
-  const ftsRange = ftsMax - ftsMin;
-  
-  const vectorMax = Math.max(...vectorResults.map(r => r.vector_score), 1);
-  
-  // 4. Create score maps
-  const ftsScoreMap = new Map<number, number>();
-  ftsResults.forEach(r => {
-    const normalized = ftsRange > 0 ? (r.fts_score - ftsMin) / ftsRange : 1;
-    ftsScoreMap.set(r.id, normalized);
-  });
-  
-  const vectorScoreMap = new Map<number, number>();
-  vectorResults.forEach(r => {
-    const normalized = r.vector_score / vectorMax;
-    vectorScoreMap.set(r.id, normalized);
-  });
-  
-  // 5. Combine results: 0.3 * FTS + 0.7 * Vector
-  const allIds = new Set([...ftsScoreMap.keys(), ...vectorScoreMap.keys()]);
+
+  const ftsResults = ftsStmt.all(query, libraryId, version, candidateLimit) as Array<
+    DocumentationSnippet & { fts_score: number }
+  >;
+
+  const ftsScores = new Map<number, number>();
+  if (ftsResults.length > 0) {
+    const scores = ftsResults.map((r) => r.fts_score);
+    const min = Math.min(...scores);
+    const max = Math.max(...scores);
+    const range = max - min;
+
+    for (const r of ftsResults) {
+      const normalized = range > 0 ? 1 - (r.fts_score - min) / range : 1;
+      ftsScores.set(r.id, normalized);
+    }
+  }
+
+  const vectorScores = new Map<number, number>();
   const snippetMap = new Map<number, DocumentationSnippet>();
-  
-  ftsResults.forEach(s => snippetMap.set(s.id, s));
-  vectorResults.forEach(s => snippetMap.set(s.id, s));
-  
-  const combinedResults = Array.from(allIds)
-    .map(id => {
+  for (const s of ftsResults) {
+    snippetMap.set(s.id, s);
+  }
+
+  if (queryMag !== 0) {
+    const maxCandidates = Math.max(candidateLimit * 200, 1000);
+    const candidateIds = queryVectorCandidateIds(
+      queryEmbedding,
+      libraryId,
+      version,
+      db,
+      maxCandidates
+    );
+
+    const scored = queryVectorScores(
+      queryEmbedding,
+      queryMag,
+      libraryId,
+      version,
+      db,
+      candidateLimit,
+      candidateIds
+    );
+
+    const ids = scored.map((s) => s.id);
+    const snippets = fetchSnippetsByIds(ids, db);
+    for (const s of snippets) {
+      snippetMap.set(s.id, s);
+    }
+
+    for (const s of scored) {
+      const normalized = (s.score + 1) / 2;
+      vectorScores.set(s.id, Math.max(0, Math.min(1, normalized)));
+    }
+  }
+
+  const allIds = new Set<number>([...ftsScores.keys(), ...vectorScores.keys()]);
+  const combined = Array.from(allIds)
+    .map((id) => {
       const snippet = snippetMap.get(id);
       if (!snippet) return null;
-      
-      const ftsScore = ftsScoreMap.get(id) ?? 0;
-      const vectorScore = vectorScoreMap.get(id) ?? 0;
-      const finalScore = 0.3 * ftsScore + 0.7 * vectorScore;
-      
-      return {
-        ...snippet,
-        finalScore
-      };
+      const fts = ftsScores.get(id) ?? 0;
+      const vec = vectorScores.get(id) ?? 0;
+      return { id, finalScore: 0.3 * fts + 0.7 * vec };
     })
     .filter((r): r is NonNullable<typeof r> => r !== null)
     .sort((a, b) => b.finalScore - a.finalScore)
     .slice(0, limit);
-  
-  // 6. Return as DocumentationSnippet[] (excluding scores and embedding)
-  return combinedResults.map(r => ({
-    id: r.id,
-    library_id: r.library_id,
-    library_version: r.library_version,
-    title: r.title,
-    content: r.content,
-    source_path: r.source_path,
-    language: r.language,
-    token_count: r.token_count,
-    breadcrumb: r.breadcrumb
-  }));
+
+  return combined
+    .map((r) => snippetMap.get(r.id))
+    .filter((s): s is DocumentationSnippet => s !== undefined);
 }

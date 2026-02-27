@@ -1,9 +1,11 @@
-import { describe, test, expect, mock, beforeEach } from 'bun:test';
+import { describe, test, expect, mock, afterEach } from 'bun:test';
 import { OpenAIProvider } from '../../src/embeddings/providers';
 
 describe('OpenAIProvider', () => {
-  beforeEach(() => {
-    (globalThis as any).fetch = undefined;
+  const originalFetch = globalThis.fetch;
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
   });
 
   test('constructs with defaults', () => {
@@ -52,7 +54,7 @@ describe('OpenAIProvider', () => {
       })
     }));
 
-    globalThis.fetch = mockFetch as any;
+    globalThis.fetch = mockFetch as unknown as typeof fetch;
 
     const provider = new OpenAIProvider({ apiKey: 'test-key' });
     const result = await provider.generateEmbedding('test text');
@@ -105,7 +107,7 @@ describe('OpenAIProvider', () => {
       });
     });
 
-    globalThis.fetch = mockFetch as any;
+    globalThis.fetch = mockFetch as unknown as typeof fetch;
 
     const provider = new OpenAIProvider({ apiKey: 'test-key' });
     const result = await provider.generateEmbedding('test text');
@@ -137,7 +139,7 @@ describe('OpenAIProvider', () => {
       });
     });
 
-    globalThis.fetch = mockFetch as any;
+    globalThis.fetch = mockFetch as unknown as typeof fetch;
 
     const provider = new OpenAIProvider({ apiKey: 'test-key' });
     const result = await provider.generateEmbedding('test text');
@@ -154,7 +156,7 @@ describe('OpenAIProvider', () => {
       json: () => Promise.resolve({ error: 'Invalid API key' })
     }));
 
-    globalThis.fetch = mockFetch as any;
+    globalThis.fetch = mockFetch as unknown as typeof fetch;
 
     const provider = new OpenAIProvider({ apiKey: 'invalid-key' });
     
@@ -171,7 +173,7 @@ describe('OpenAIProvider', () => {
       json: () => Promise.resolve({ error: 'Invalid request' })
     }));
 
-    globalThis.fetch = mockFetch as any;
+    globalThis.fetch = mockFetch as unknown as typeof fetch;
 
     const provider = new OpenAIProvider({ apiKey: 'test-key' });
     const result = await provider.generateEmbedding('test text');
@@ -187,7 +189,7 @@ describe('OpenAIProvider', () => {
       json: () => Promise.resolve({ error: 'Internal server error' })
     }));
 
-    globalThis.fetch = mockFetch as any;
+    globalThis.fetch = mockFetch as unknown as typeof fetch;
 
     const provider = new OpenAIProvider({ apiKey: 'test-key' });
     
@@ -215,7 +217,7 @@ describe('OpenAIProvider', () => {
       });
     });
 
-    globalThis.fetch = mockFetch as any;
+    globalThis.fetch = mockFetch as unknown as typeof fetch;
 
     const provider = new OpenAIProvider({ apiKey: 'test-key' });
     const result = await provider.generateEmbedding('test text');
@@ -240,7 +242,7 @@ describe('OpenAIProvider', () => {
       })
     }));
 
-    globalThis.fetch = mockFetch as any;
+    globalThis.fetch = mockFetch as unknown as typeof fetch;
 
     const provider = new OpenAIProvider({ apiKey: 'test-key' });
     const results = await provider.generateEmbeddings(['text 1', 'text 2']);
@@ -273,7 +275,7 @@ describe('OpenAIProvider', () => {
       })
     }));
 
-    globalThis.fetch = mockFetch as any;
+    globalThis.fetch = mockFetch as unknown as typeof fetch;
 
     const provider = new OpenAIProvider({ apiKey: 'test-key' });
     const results = await provider.generateEmbeddings(['', 'text 1', '   ']);
@@ -304,7 +306,7 @@ describe('OpenAIProvider', () => {
       })
     }));
 
-    globalThis.fetch = mockFetch as any;
+    globalThis.fetch = mockFetch as unknown as typeof fetch;
 
     const provider = new OpenAIProvider({ apiKey: 'test-key' });
     const results = await provider.generateEmbeddings(texts);
@@ -345,7 +347,7 @@ describe('OpenAIProvider', () => {
       });
     });
 
-    globalThis.fetch = mockFetch as any;
+    globalThis.fetch = mockFetch as unknown as typeof fetch;
 
     const provider = new OpenAIProvider({ apiKey: 'test-key' });
     const texts = new Array(150).fill('test');

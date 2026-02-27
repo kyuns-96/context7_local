@@ -10,7 +10,7 @@ Efficient, local Model Context Protocol (MCP) server for searching library docum
 - **Air-Gapped Ready**: Once libraries are ingested, no internet connection is required.
 - **Privacy**: Your documentation queries stay on your local network or machine.
 - **Performance**: High-speed keyword search using SQLite FTS5.
-- **Customizable**: Ingest any GitHub repository's markdown documentation.
+- **Customizable**: Ingest GitHub documentation (Markdown/MDX/reStructuredText).
 
 Compared to the cloud-based Context7, this local version gives you full control over the registry and ensures availability in restricted environments.
 
@@ -117,9 +117,16 @@ bun run src/cli/index.ts ingest --preset-all --db docs.db
 ```
 
 ### Custom Documentation Path
-If the documentation is not in the root or `/docs`, specify it manually:
+If the documentation is not in the root, specify it manually. `--docs-path` can be a directory, a single file, or a glob pattern (relative to the repo root):
 ```bash
+# Directory
+bun run src/cli/index.ts ingest https://github.com/my/repo --docs-path docs --db docs.db
+
+# Glob
 bun run src/cli/index.ts ingest https://github.com/my/repo --docs-path "documentation/**/*.md" --db docs.db
+
+# Single file
+bun run src/cli/index.ts ingest https://github.com/my/repo --docs-path "packages/sfc-playground/README.md" --db docs.db
 ```
 
 ### Utilities
@@ -243,6 +250,10 @@ The `query-docs` tool supports three search modes through the `searchMode` param
 ### Using Search Modes in Queries
 When using the `query-docs` tool, you can specify the `searchMode` parameter. If omitted, it defaults to `hybrid`.
 
+You can also control the number of results and optional reranking:
+- `topK` (default: 10)
+- `useReranking` (default: false)
+
 **Example (MCP Tool Call):**
 ```json
 {
@@ -250,7 +261,9 @@ When using the `query-docs` tool, you can specify the `searchMode` parameter. If
   "arguments": {
     "libraryId": "/vercel/next.js",
     "query": "how to use server components",
-    "searchMode": "semantic"
+    "searchMode": "semantic",
+    "topK": 5,
+    "useReranking": false
   }
 }
 ```
