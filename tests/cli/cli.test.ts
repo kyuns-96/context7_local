@@ -60,7 +60,7 @@ describe("CLI - Command Execution", () => {
 
         expect(ingestSpy).toHaveBeenCalledTimes(1);
         const call = ingestSpy.mock.calls[0];
-        expect(call?.[0]).toBe("https://github.com/facebook/react");
+        expect(call?.[0]).toBe("https://github.com/reactjs/react.dev");
         expect(call?.[1]).toBe(dbPath);
       } finally {
         ingestSpy.mockRestore();
@@ -200,12 +200,12 @@ describe("CLI - Command Execution", () => {
         await executeCommand({
           command: "ingest",
           db: dbPath,
-          preset: "react",
+          preset: "django",
         });
 
         expect(ingestSpy).toHaveBeenCalledTimes(1);
         const options = ingestSpy.mock.calls[0]?.[2];
-        expect(options?.version).toBe("v19.2.4");
+        expect(options?.version).toBe("6.0.2");
       } finally {
         ingestSpy.mockRestore();
       }
@@ -218,13 +218,13 @@ describe("CLI - Command Execution", () => {
         await executeCommand({
           command: "ingest",
           db: dbPath,
-          preset: "react",
-          version: "v18.0.0",
+          preset: "django",
+          version: "5.2.9",
         });
 
         expect(ingestSpy).toHaveBeenCalledTimes(1);
         const options = ingestSpy.mock.calls[0]?.[2];
-        expect(options?.version).toBe("v18.0.0");
+        expect(options?.version).toBe("5.2.9");
       } finally {
         ingestSpy.mockRestore();
       }
@@ -279,11 +279,11 @@ describe("CLI - Command Execution", () => {
         expect(ingestSpy).toHaveBeenCalled();
         expect(ingestSpy.mock.calls.length).toBe(30);
 
-        // Find the react call (sorted alphabetically, so find by repo URL)
-        const reactCall = ingestSpy.mock.calls.find(
-          (call) => call[0] === "https://github.com/facebook/react"
+        // Find the django call (has versions) — should use versions[0]
+        const djangoCall = ingestSpy.mock.calls.find(
+          (call) => call[0] === "https://github.com/django/django"
         );
-        expect(reactCall?.[2]?.version).toBe("v19.2.4");
+        expect(djangoCall?.[2]?.version).toBe("6.0.2");
 
         // Express has no versions — should be undefined
         const expressCall = ingestSpy.mock.calls.find(
@@ -312,10 +312,10 @@ describe("CLI - Command Execution", () => {
         );
 
         // Should still use per-preset versions, not the global v1.0.0
-        const reactCall = ingestSpy.mock.calls.find(
-          (call) => call[0] === "https://github.com/facebook/react"
+        const djangoCall = ingestSpy.mock.calls.find(
+          (call) => call[0] === "https://github.com/django/django"
         );
-        expect(reactCall?.[2]?.version).toBe("v19.2.4");
+        expect(djangoCall?.[2]?.version).toBe("6.0.2");
       } finally {
         warnSpy.mockRestore();
         ingestSpy.mockRestore();

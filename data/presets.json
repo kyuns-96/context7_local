@@ -1,10 +1,9 @@
 {
   "react": {
-    "repo": "https://github.com/facebook/react",
-    "docsPath": "docs",
+    "repo": "https://github.com/reactjs/react.dev",
+    "docsPath": "src/content",
     "title": "React",
-    "description": "A JavaScript library for building user interfaces with component-based architecture",
-    "versions": ["v19.2.4", "v19.1.5"]
+    "description": "A JavaScript library for building user interfaces with component-based architecture"
   },
   "nextjs": {
     "repo": "https://github.com/vercel/next.js",
@@ -14,11 +13,10 @@
     "versions": ["v16.1.6", "v15.5.12"]
   },
   "typescript": {
-    "repo": "https://github.com/microsoft/TypeScript",
-    "docsPath": "doc",
+    "repo": "https://github.com/microsoft/TypeScript-Website",
+    "docsPath": "packages/documentation/copy/en",
     "title": "TypeScript",
-    "description": "A typed superset of JavaScript that compiles to clean, readable JavaScript code",
-    "versions": ["v5.9.3", "v5.9.2"]
+    "description": "A typed superset of JavaScript that compiles to clean, readable JavaScript code"
   },
   "nodejs": {
     "repo": "https://github.com/nodejs/node",
@@ -44,7 +42,7 @@
     "docsPath": "adev/src/content",
     "title": "Angular",
     "description": "Platform for building mobile and desktop web applications",
-    "versions": ["21.1.5", "21.1.4"]
+    "versions": ["v21.2.0", "v21.1.0"]
   },
   "svelte": {
     "repo": "https://github.com/sveltejs/svelte",
@@ -54,18 +52,16 @@
     "versions": ["svelte@5.53.3", "svelte@5.53.2"]
   },
   "tailwindcss": {
-    "repo": "https://github.com/tailwindlabs/tailwindcss",
-    "docsPath": "docs",
+    "repo": "https://github.com/tailwindlabs/tailwindcss.com",
+    "docsPath": "src/docs",
     "title": "Tailwind CSS",
-    "description": "Utility-first CSS framework for rapidly building custom designs",
-    "versions": ["v4.2.1", "v4.2.0"]
+    "description": "Utility-first CSS framework for rapidly building custom designs"
   },
   "prisma": {
-    "repo": "https://github.com/prisma/prisma",
-    "docsPath": "content/200-orm/100-overview",
+    "repo": "https://github.com/prisma/docs",
+    "docsPath": "apps/docs/content/docs",
     "title": "Prisma",
-    "description": "Next-generation ORM for Node.js and TypeScript with type-safe database access",
-    "versions": ["7.4.1", "7.4.0"]
+    "description": "Next-generation ORM for Node.js and TypeScript with type-safe database access"
   },
   "django": {
     "repo": "https://github.com/django/django",

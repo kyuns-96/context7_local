@@ -96,8 +96,8 @@ describe("presets", () => {
       const preset = getPreset("react");
       expect(preset).toBeDefined();
       expect(preset?.title).toBe("React");
-      expect(preset?.repo).toBe("https://github.com/facebook/react");
-      expect(preset?.docsPath).toBe("docs");
+      expect(preset?.repo).toBe("https://github.com/reactjs/react.dev");
+      expect(preset?.docsPath).toBe("src/content");
     });
 
     it("returns correct config for different presets", () => {
@@ -130,15 +130,18 @@ describe("presets", () => {
     });
 
     it("returns versions for presets that have them", () => {
-      const react = getPreset("react");
-      expect(react?.versions).toBeDefined();
-      expect(Array.isArray(react?.versions)).toBe(true);
-      expect(react?.versions?.[0]).toBeDefined();
+      const django = getPreset("django");
+      expect(django?.versions).toBeDefined();
+      expect(Array.isArray(django?.versions)).toBe(true);
+      expect(django?.versions?.[0]).toBeDefined();
     });
 
     it("returns undefined versions for presets without them", () => {
       const express = getPreset("express");
       expect(express?.versions).toBeUndefined();
+
+      const react = getPreset("react");
+      expect(react?.versions).toBeUndefined();
     });
   });
 
